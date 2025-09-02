@@ -1,0 +1,196 @@
+---
+interface Props {
+  title: string;
+  data: {
+    passed: number;
+    failed: number;
+    skipped: number;
+    total: number;
+  };
+  size?: number;
+}
+
+const { title, data, size = 200 } = Astro.props;
+const { passed, failed, skipped, total } = data;
+
+// Calculate percentages
+const passedPercent = total > 0 ? (passed / total) * 100 : 0;
+const failedPercent = total > 0 ? (failed / total) * 100 : 0;
+const skippedPercent = total > 0 ? (skipped / total) * 100 : 0;
+
+
+// Convert percentages to angles (360 degrees = 100%)
+const passedAngle = (passedPercent / 100) * 360;
+const failedAngle = (failedPercent / 100) * 360;
+const skippedAngle = (skippedPercent / 100) * 360;
+
+const radius = size / 2 - 20;
+const center = size / 2;
+
+// Create pie slice path
+function createPieSlice(startAngle: number, endAngle: number, radius: number, centerX: number, centerY: number) {
+  const startAngleRad = (startAngle - 90) * Math.PI / 180;
+  const endAngleRad = (endAngle - 90) * Math.PI / 180;
+  
+  const x1 = centerX + radius * Math.cos(startAngleRad);
+  const y1 = centerY + radius * Math.sin(startAngleRad);
+  const x2 = centerX + radius * Math.cos(endAngleRad);
+  const y2 = centerY + radius * Math.sin(endAngleRad);
+  
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  
+  if (endAngle - startAngle >= 360) {
+    // Full circle
+    return `M ${centerX} ${centerY} m -${radius} 0 a ${radius},${radius} 0 1,0 ${radius*2},0 a ${radius},${radius} 0 1,0 -${radius*2},0`;
+  }
+  
+  return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+}
+
+// Calculate start angles for each slice
+let currentAngle = 0;
+const passedPath = passedAngle > 0 ? createPieSlice(currentAngle, currentAngle + passedAngle, radius, center, center) : '';
+currentAngle += passedAngle;
+
+const failedPath = failedAngle > 0 ? createPieSlice(currentAngle, currentAngle + failedAngle, radius, center, center) : '';
+currentAngle += failedAngle;
+
+const skippedPath = skippedAngle > 0 ? createPieSlice(currentAngle, currentAngle + skippedAngle, radius, center, center) : '';
+---
+
+<div class="pie-chart-container">
+  <h3 class="chart-title">{title}</h3>
+  <div class="chart-wrapper">
+    <svg width={size} height={size} class="pie-chart" viewBox={`0 0 ${size} ${size}`}>
+      <!-- Background circle -->
+      {total === 0 && (
+        <circle cx={center} cy={center} r={radius} fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2" />
+      )}
+      
+      <!-- Pie slices -->
+      {passedAngle > 0 && (
+        <path
+          d={passedPath}
+          fill="#22c55e"
+          stroke="white"
+          stroke-width="2"
+        />
+      )}
+      
+      {failedAngle > 0 && (
+        <path
+          d={failedPath}
+          fill="#ef4444"
+          stroke="white"
+          stroke-width="2"
+        />
+      )}
+      
+      {skippedAngle > 0 && (
+        <path
+          d={skippedPath}
+          fill="#f59e0b"
+          stroke="white"
+          stroke-width="2"
+        />
+      )}
+      
+      <!-- Center circle with total -->
+      <circle cx={center} cy={center} r="30" fill="white" stroke="#e5e7eb" stroke-width="2" />
+      <text x={center} y={center - 5} text-anchor="middle" class="total-text">{total}</text>
+      <text x={center} y={center + 12} text-anchor="middle" class="total-label">Total</text>
+    </svg>
+    
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-color passed"></div>
+        <span>Passed: {passed} ({passedPercent.toFixed(1)}%)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color failed"></div>
+        <span>Failed: {failed} ({failedPercent.toFixed(1)}%)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color skipped"></div>
+        <span>Skipped: {skipped} ({skippedPercent.toFixed(1)}%)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .pie-chart-container {
+    background: transparent;
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+  }
+  
+  .chart-title {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+  }
+  
+  .chart-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .pie-chart {
+    transition: transform 0.2s ease;
+  }
+  
+  .pie-chart:hover {
+    transform: scale(1.02);
+  }
+  
+  .total-text {
+    font-size: 16px;
+    font-weight: bold;
+    fill: #374151;
+  }
+  
+  .total-label {
+    font-size: 10px;
+    fill: #6b7280;
+  }
+  
+  .legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #374151;
+  }
+  
+  .legend-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  
+  .legend-color.passed {
+    background-color: #22c55e;
+  }
+  
+  .legend-color.failed {
+    background-color: #ef4444;
+  }
+  
+  .legend-color.skipped {
+    background-color: #f59e0b;
+  }
+</style>

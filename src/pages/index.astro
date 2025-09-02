@@ -1,11 +1,178 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
+import FedoraVersionsLastRun from '../components/FedoraVersionsLastRun.astro';
+import FedoraVersionsDailyResults from '../components/FedoraVersionsDailyResults.astro';
+// Fetch Fedora versions data from our API
+let fedoraVersions = [];
+let error = null;
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+try {
+  const response = await fetch(`${Astro.url.origin}/api/main?distro=fedora&format=flat`);
+  if (response.ok) {
+    const data = await response.json();
+    // Ensure we have an array
+    if (Array.isArray(data)) {
+      fedoraVersions = data;
+    } else if (data && data.versions && Array.isArray(data.versions)) {
+      // If API returned grouped format instead of flat
+      fedoraVersions = data.versions;
+    } else {
+      console.error('API returned unexpected format:', data);
+      error = 'Invalid data format received';
+    }
+  } else {
+    error = 'Failed to fetch data';
+  }
+} catch (e) {
+  error = 'API connection failed';
+  console.error('Failed to fetch Fedora data:', e);
+  
+  // Sample data for demonstration when API fails
+  fedoraVersions = [
+    {
+      version: "Fedora-Cloud-41-x64",
+      latestResults: {
+        timestamp: new Date().toISOString(),
+        total: 91,
+        passed: 72,
+        failed: 10,
+        skipped: 9,
+        successRate: 79
+      }
+    },
+    {
+      version: "Fedora-Cloud-41-Arm64",
+      latestResults: {
+        timestamp: new Date().toISOString(),
+        total: 88,
+        passed: 75,
+        failed: 8,
+        skipped: 5,
+        successRate: 85
+      }
+    },
+    {
+      version: "Fedora-Cloud-42-x64",
+      latestResults: {
+        timestamp: new Date().toISOString(),
+        total: 94,
+        passed: 80,
+        failed: 7,
+        skipped: 7,
+        successRate: 85
+      }
+    },
+    {
+      version: "Fedora-Cloud-42-Arm64",
+      latestResults: {
+        timestamp: new Date().toISOString(),
+        total: 89,
+        passed: 73,
+        failed: 9,
+        skipped: 7,
+        successRate: 82
+      }
+    },
+    {
+      version: "Fedora-Cloud-Rawhide-x64",
+      latestResults: {
+        timestamp: new Date().toISOString(),
+        total: 92,
+        passed: 68,
+        failed: 15,
+        skipped: 9,
+        successRate: 74
+      }
+    },
+    {
+      version: "Fedora-Cloud-Rawhide-Arm64",
+      latestResults: {
+        timestamp: new Date().toISOString(),
+        total: 87,
+        passed: 71,
+        failed: 11,
+        skipped: 5,
+        successRate: 82
+      }
+    }
+  ];
+}
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="Azure Cloud Image Results">
+  <main>
+    <div class="dashboard-header">
+      <h1>Azure Cloud Image Test Results</h1>
+      {error && (
+        <div class="error-banner">
+          <p>⚠️ {error} - Showing sample data for demonstration</p>
+        </div>
+      )}
+    </div>
+    
+    <div class="dashboard-content">
+      <FedoraVersionsLastRun fedoraVersions={fedoraVersions} />
+      <FedoraVersionsDailyResults fedoraVersions={fedoraVersions} />
+    </div>
+  </main>
 </Layout>
+
+<style>
+  .dashboard-header {
+    text-align: center;
+    padding: 32px 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    margin-bottom: 32px;
+  }
+  
+  .dashboard-header h1 {
+    margin: 0 0 8px 0;
+    font-size: 36px;
+    font-weight: 800;
+  }
+  
+  .subtitle {
+    margin: 0;
+    font-size: 18px;
+    opacity: 0.9;
+  }
+  
+  .error-banner {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 16px;
+    color: #fef2f2;
+  }
+  
+  .error-banner p {
+    margin: 0;
+    font-size: 14px;
+  }
+  
+  .dashboard-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  
+  @media (max-width: 768px) {
+    .dashboard-header {
+      padding: 24px 16px;
+    }
+    
+    .dashboard-header h1 {
+      font-size: 28px;
+    }
+    
+    .subtitle {
+      font-size: 16px;
+    }
+    
+    .dashboard-content {
+      padding: 0 16px;
+    }
+  }
+</style>
