@@ -1,178 +1,1254 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import FedoraVersionsLastRun from '../components/FedoraVersionsLastRun.astro';
-import FedoraVersionsDailyResults from '../components/FedoraVersionsDailyResults.astro';
-// Fetch Fedora versions data from our API
-let fedoraVersions = [];
-let error = null;
+/**
+ * Comprehensive Dashboard - Single Page
+ * Shows: Today's Results, Weekly Trends (7 days), Monthly Trends (30 days)
+ */
 
-try {
-  const response = await fetch(`${Astro.url.origin}/api/main?distro=fedora&format=flat`);
-  if (response.ok) {
-    const data = await response.json();
-    // Ensure we have an array
-    if (Array.isArray(data)) {
-      fedoraVersions = data;
-    } else if (data && data.versions && Array.isArray(data.versions)) {
-      // If API returned grouped format instead of flat
-      fedoraVersions = data.versions;
-    } else {
-      console.error('API returned unexpected format:', data);
-      error = 'Invalid data format received';
-    }
-  } else {
-    error = 'Failed to fetch data';
-  }
-} catch (e) {
-  error = 'API connection failed';
-  console.error('Failed to fetch Fedora data:', e);
-  
-  // Sample data for demonstration when API fails
-  fedoraVersions = [
-    {
-      version: "Fedora-Cloud-41-x64",
-      latestResults: {
-        timestamp: new Date().toISOString(),
-        total: 91,
-        passed: 72,
-        failed: 10,
-        skipped: 9,
-        successRate: 79
-      }
-    },
-    {
-      version: "Fedora-Cloud-41-Arm64",
-      latestResults: {
-        timestamp: new Date().toISOString(),
-        total: 88,
-        passed: 75,
-        failed: 8,
-        skipped: 5,
-        successRate: 85
-      }
-    },
-    {
-      version: "Fedora-Cloud-42-x64",
-      latestResults: {
-        timestamp: new Date().toISOString(),
-        total: 94,
-        passed: 80,
-        failed: 7,
-        skipped: 7,
-        successRate: 85
-      }
-    },
-    {
-      version: "Fedora-Cloud-42-Arm64",
-      latestResults: {
-        timestamp: new Date().toISOString(),
-        total: 89,
-        passed: 73,
-        failed: 9,
-        skipped: 7,
-        successRate: 82
-      }
-    },
-    {
-      version: "Fedora-Cloud-Rawhide-x64",
-      latestResults: {
-        timestamp: new Date().toISOString(),
-        total: 92,
-        passed: 68,
-        failed: 15,
-        skipped: 9,
-        successRate: 74
-      }
-    },
-    {
-      version: "Fedora-Cloud-Rawhide-Arm64",
-      latestResults: {
-        timestamp: new Date().toISOString(),
-        total: 87,
-        passed: 71,
-        failed: 11,
-        skipped: 5,
-        successRate: 82
-      }
-    }
-  ];
+import Layout from '../layouts/Layout.astro';
+import { getComposeIds, getComposeResults } from '@/lib/services/results';
+import { extractVersion, formatPercent } from '@/lib/utils/formatters';
+import type { TestResult } from '@/types';
+
+// Fetch all compose results for historical analysis
+// Enable discovery to get all available composes from Azure (not just known list)
+const composeIds = await getComposeIds(true);
+
+// Get all results
+const allResults: TestResult[] = [];
+for (const composeId of composeIds) {
+  const results = await getComposeResults(composeId);
+  allResults.push(...results);
 }
+
+// Helper to identify distro type
+function getDistroType(composeId: string): string {
+  if (composeId.includes('Rawhide')) return 'Rawhide';
+  if (composeId.includes('eln')) return 'ELN';
+  const version = extractVersion(composeId);
+  return `Fedora ${version}`;
+}
+
+// Helper to get date from compose ID
+function getComposeDate(composeId: string): Date {
+  // Extract date from compose ID (e.g., "Fedora-Cloud-43-20260122.0")
+  const match = composeId.match(/(\d{8})/);
+  if (match) {
+    const dateStr = match[1];
+    const year = parseInt(dateStr.substring(0, 4));
+    const month = parseInt(dateStr.substring(4, 6)) - 1;
+    const day = parseInt(dateStr.substring(6, 8));
+    return new Date(year, month, day);
+  }
+  return new Date();
+}
+
+// Helper to format date nicely
+function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
+}
+
+// Helper to get relative time badge info
+function getRelativeTimeBadge(date: Date): { text: string; colorClass: string } {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const resultDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  const diffTime = today.getTime() - resultDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return { text: 'Today', colorClass: 'badge-today' };
+  } else if (diffDays === 1) {
+    return { text: 'Yesterday', colorClass: 'badge-recent' };
+  } else if (diffDays <= 3) {
+    return { text: `${diffDays} days ago`, colorClass: 'badge-recent' };
+  } else if (diffDays <= 7) {
+    return { text: `${diffDays} days ago`, colorClass: 'badge-old' };
+  } else {
+    return { text: `${diffDays} days ago`, colorClass: 'badge-old' };
+  }
+}
+
+// Helper to create donut chart arc paths
+function createDonutArc(startAngle: number, endAngle: number, cx = 100, cy = 100, outerR = 75, innerR = 50): string {
+  const polarToCartesian = (cx: number, cy: number, r: number, angle: number) => {
+    const rad = (angle - 90) * Math.PI / 180;
+    return {
+      x: cx + (r * Math.cos(rad)),
+      y: cy + (r * Math.sin(rad))
+    };
+  };
+  
+  const outerStart = polarToCartesian(cx, cy, outerR, endAngle);
+  const outerEnd = polarToCartesian(cx, cy, outerR, startAngle);
+  const innerStart = polarToCartesian(cx, cy, innerR, endAngle);
+  const innerEnd = polarToCartesian(cx, cy, innerR, startAngle);
+  const largeArc = endAngle - startAngle <= 180 ? '0' : '1';
+  
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 0 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 1 ${innerStart.x} ${innerStart.y}`,
+    'Z'
+  ].join(' ');
+}
+
+// Group results by distro+arch
+interface GroupedResult {
+  distro: string;
+  arch: string;
+  today?: TestResult;
+  weekly: TestResult[];  // Last 7 days
+  monthly: TestResult[]; // Last 30 days
+}
+
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const sevenDaysAgo = new Date(today);
+sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // Last 7 days including today
+const thirtyDaysAgo = new Date(today);
+thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+const groupMap = new Map<string, GroupedResult>();
+
+for (const result of allResults) {
+  const distro = getDistroType(result.composeId);
+  const arch = result.architecture;
+  const key = `${distro}-${arch}`;
+  const resultDate = getComposeDate(result.composeId);
+  
+  if (!groupMap.has(key)) {
+    groupMap.set(key, {
+      distro,
+      arch,
+      weekly: [],
+      monthly: []
+    });
+  }
+  
+  const group = groupMap.get(key)!;
+  
+  // Keep track of the most recent result (not necessarily from today)
+  if (!group.today || result.composeId > group.today.composeId) {
+    group.today = result;
+  }
+  
+  // Add to weekly if within 7 days
+  if (resultDate >= sevenDaysAgo && resultDate <= today) {
+    group.weekly.push(result);
+  }
+  
+  // Add to monthly if within 30 days
+  if (resultDate >= thirtyDaysAgo && resultDate <= today) {
+    group.monthly.push(result);
+  }
+}
+
+// Process weekly: keep only latest result per day, ensure max 7 days
+for (const group of groupMap.values()) {
+  // Group weekly results by date
+  const weeklyByDate = new Map<string, TestResult>();
+  for (const result of group.weekly) {
+    const dateKey = getComposeDate(result.composeId).toISOString().slice(0, 10);
+    const existing = weeklyByDate.get(dateKey);
+    if (!existing || result.composeId > existing.composeId) {
+      weeklyByDate.set(dateKey, result);
+    }
+  }
+  
+  // Convert back to array and sort by date, limit to 7 most recent days
+  group.weekly = Array.from(weeklyByDate.values())
+    .sort((a, b) => getComposeDate(a.composeId).getTime() - getComposeDate(b.composeId).getTime())
+    .slice(-7);
+  
+  // Process monthly: keep only latest result per day, ensure max 30 days
+  const monthlyByDate = new Map<string, TestResult>();
+  for (const result of group.monthly) {
+    const dateKey = getComposeDate(result.composeId).toISOString().slice(0, 10);
+    const existing = monthlyByDate.get(dateKey);
+    if (!existing || result.composeId > existing.composeId) {
+      monthlyByDate.set(dateKey, result);
+    }
+  }
+  
+  // Convert back to array and sort by date, limit to 30 most recent days
+  group.monthly = Array.from(monthlyByDate.values())
+    .sort((a, b) => getComposeDate(a.composeId).getTime() - getComposeDate(b.composeId).getTime())
+    .slice(-30);
+}
+
+// Define distro order
+const distroOrder = ['Rawhide', 'ELN', 'Fedora 43', 'Fedora 42'];
+const archOrder = ['x86_64', 'aarch64'];
+
+// Sort by arch first, then distro (for row-based layout)
+const groups = Array.from(groupMap.values()).sort((a, b) => {
+  const archCompare = archOrder.indexOf(a.arch) - archOrder.indexOf(b.arch);
+  if (archCompare !== 0) return archCompare;
+  return distroOrder.indexOf(a.distro) - distroOrder.indexOf(b.distro);
+});
 ---
 
-<Layout title="Azure Cloud Image Results">
-  <main>
-    <div class="dashboard-header">
-      <h1>Azure Cloud Image Test Results</h1>
-      {error && (
-        <div class="error-banner">
-          <p>⚠️ {error} - Showing sample data for demonstration</p>
+<Layout title="Fedora Cloud Test Dashboard">
+  <main class="dashboard-container">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="header-content-wrapper">
+        <img src={`${import.meta.env.BASE_URL}/fedora-logo.png`} alt="Fedora Logo" class="fedora-logo" />
+        <div class="header-text">
+          <h1>Fedora Cloud Image Test Results</h1>
+          <p class="subtitle">Automated testing on Azure infrastructure</p>
         </div>
-      )}
-    </div>
-    
-    <div class="dashboard-content">
-      <FedoraVersionsLastRun fedoraVersions={fedoraVersions} />
-      <FedoraVersionsDailyResults fedoraVersions={fedoraVersions} />
-    </div>
+      </div>
+    </header>
+
+    <!-- Latest Results -->
+    <section class="section today-section">
+      <h2 class="section-title">Latest Results</h2>
+      
+      <!-- x86_64 Row -->
+      <div class="arch-section">
+        <h3 class="arch-title">x86_64</h3>
+        <div class="today-grid">
+          {groups.filter(g => g.arch === 'x86_64' && g.today).map(group => {
+            const passed = group.today!.summary.passed;
+            const failed = group.today!.summary.failed;
+            const skipped = group.today!.summary.skipped;
+            const total = passed + failed;
+            
+            // Calculate donut chart angles (only passed and failed)
+            const passedAngle = (passed / total) * 360;
+            const failedAngle = (failed / total) * 360;
+            
+            // Get relative time badge
+            const composeDate = getComposeDate(group.today!.composeId);
+            const badge = getRelativeTimeBadge(composeDate);
+            
+            return (
+              <a href={`/dashboard/results/${group.today!.composeId}/${group.arch}`} class="today-card">
+                <div class="card-header">
+                  <h3>{group.distro}</h3>
+                  <span class={`time-badge ${badge.colorClass}`}>{badge.text}</span>
+                </div>
+                
+                <div class="pie-container">
+                  <svg viewBox="0 0 200 200" class="pie-chart">
+                    {passed > 0 && (
+                      <path 
+                        d={createDonutArc(0, passedAngle)} 
+                        fill="#059669" 
+                        class="donut-arc"
+                      />
+                    )}
+                    {failed > 0 && (
+                      <path 
+                        d={createDonutArc(passedAngle, 360)} 
+                        fill="#dc2626" 
+                        class="donut-arc"
+                      />
+                    )}
+                    <text x="100" y="95" text-anchor="middle" class="donut-percentage">{formatPercent(passed, failed)}</text>
+                    <text x="100" y="115" text-anchor="middle" class="donut-label">Pass Rate</text>
+                  </svg>
+                </div>
+                
+                <div class="card-legend">
+                  <div class="legend-item">
+                    <span class="legend-color passed"></span>
+                    <span class="legend-text">Passed: {passed}</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-color failed"></span>
+                    <span class="legend-text">Failed: {failed}</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-color skipped"></span>
+                    <span class="legend-text">Skipped: {skipped}</span>
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+
+      <!-- aarch64 Row -->
+      <div class="arch-section">
+        <h3 class="arch-title">aarch64</h3>
+        <div class="today-grid">
+          {groups.filter(g => g.arch === 'aarch64' && g.today).map(group => {
+            const passed = group.today!.summary.passed;
+            const failed = group.today!.summary.failed;
+            const skipped = group.today!.summary.skipped;
+            const total = passed + failed;
+            
+            // Calculate donut chart angles (only passed and failed)
+            const passedAngle = (passed / total) * 360;
+            const failedAngle = (failed / total) * 360;
+            
+            // Get relative time badge
+            const composeDate = getComposeDate(group.today!.composeId);
+            const badge = getRelativeTimeBadge(composeDate);
+            
+            return (
+              <a href={`/dashboard/results/${group.today!.composeId}/${group.arch}`} class="today-card">
+                <div class="card-header">
+                  <h3>{group.distro}</h3>
+                  <span class={`time-badge ${badge.colorClass}`}>{badge.text}</span>
+                </div>
+                
+                <div class="pie-container">
+                  <svg viewBox="0 0 200 200" class="pie-chart">
+                    {passed > 0 && (
+                      <path 
+                        d={createDonutArc(0, passedAngle)} 
+                        fill="#059669" 
+                        class="donut-arc"
+                      />
+                    )}
+                    {failed > 0 && (
+                      <path 
+                        d={createDonutArc(passedAngle, 360)} 
+                        fill="#dc2626" 
+                        class="donut-arc"
+                      />
+                    )}
+                    <text x="100" y="95" text-anchor="middle" class="donut-percentage">{formatPercent(passed, failed)}</text>
+                    <text x="100" y="115" text-anchor="middle" class="donut-label">Pass Rate</text>
+                  </svg>
+                </div>
+                
+                <div class="card-legend">
+                  <div class="legend-item">
+                    <span class="legend-color passed"></span>
+                    <span class="legend-text">Passed: {passed}</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-color failed"></span>
+                    <span class="legend-text">Failed: {failed}</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-color skipped"></span>
+                    <span class="legend-text">Skipped: {skipped}</span>
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+
+    <!-- Weekly Trends -->
+    <section class="section weekly-section">
+      <h2 class="section-title">Weekly Trends (Past 7 Days)</h2>
+      
+      <!-- x86_64 Row -->
+      <div class="arch-section">
+        <h3 class="arch-title">x86_64</h3>
+        <div class="distro-row">
+          {groups.filter(g => g.arch === 'x86_64' && g.weekly.length > 0).map(group => (
+            <div class="distro-card">
+              <div class="distro-card-header">
+                <h4 class="distro-card-title">{group.distro}</h4>
+                <span class="distro-card-summary">{group.weekly.length} day{group.weekly.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div class="distro-card-content">
+                <div class="weekly-histogram-container">
+                  <svg viewBox="0 0 400 150" class="weekly-histogram-svg">
+                    <!-- Y-axis labels (no axis lines) -->
+                    <text x="25" y="18" text-anchor="end" class="weekly-axis-label">100%</text>
+                    <text x="25" y="68" text-anchor="end" class="weekly-axis-label">50%</text>
+                    <text x="25" y="115" text-anchor="end" class="weekly-axis-label">0%</text>
+                    
+                    <!-- Grid lines -->
+                    <line x1="30" y1="15" x2="380" y2="15" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    <line x1="30" y1="65" x2="380" y2="65" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    
+                    <!-- Histogram bars -->
+                    {group.weekly.map((result, idx) => {
+                      const passed = result.summary.passed;
+                      const failed = result.summary.failed;
+                      const skipped = result.summary.skipped;
+                      const total = result.summary.total;
+                      const passRate = (passed / (passed + failed)) * 100;
+                      const barWidth = 340 / group.weekly.length;
+                      const x = 30 + (idx * barWidth) + (barWidth * 0.15);
+                      const barActualWidth = barWidth * 0.7;
+                      const height = (passRate / 100) * 100;
+                      const y = 115 - height;
+                      const color = passRate >= 80 ? '#059669' : passRate >= 60 ? '#d97706' : '#dc2626';
+                      const date = getComposeDate(result.composeId);
+                      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      
+                      return (
+                        <g>
+                          <rect 
+                            x={x} 
+                            y={y} 
+                            width={barActualWidth} 
+                            height={height}
+                            fill={color}
+                            class="weekly-histogram-bar"
+                          />
+                          <text 
+                            x={x + barActualWidth / 2} 
+                            y={y - 5} 
+                            text-anchor="middle" 
+                            class="weekly-bar-percentage"
+                          >
+                            {passRate.toFixed(0)}%
+                          </text>
+                          <text 
+                            x={x + barActualWidth / 2} 
+                            y="130" 
+                            text-anchor="middle" 
+                            class="weekly-date-label"
+                            data-weekly-bar={`weekly-${group.distro}-${group.arch}-${idx}`}
+                          >
+                            {dateStr}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                  
+                  <!-- Expandable details for each bar -->
+                  {group.weekly.map((result, idx) => {
+                    const passed = result.summary.passed;
+                    const failed = result.summary.failed;
+                    const skipped = result.summary.skipped;
+                    const date = getComposeDate(result.composeId);
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    
+                    return (
+                      <div class="weekly-bar-details" data-weekly-details={`weekly-${group.distro}-${group.arch}-${idx}`}>
+                        <div class="weekly-details-header">{dateStr}</div>
+                        <div class="weekly-details-grid">
+                          <div class="detail-item">
+                            <span class="detail-color passed"></span>
+                            <span class="detail-text">Passed: {passed}</span>
+                          </div>
+                          <div class="detail-item">
+                            <span class="detail-color failed"></span>
+                            <span class="detail-text">Failed: {failed}</span>
+                          </div>
+                          <div class="detail-item">
+                            <span class="detail-color skipped"></span>
+                            <span class="detail-text">Skipped: {skipped}</span>
+                          </div>
+                        </div>
+                        <a href={`/dashboard/results/${result.composeId}/${group.arch}`} class="detail-link">
+                          View Full Results →
+                        </a>
+                        <div class="detail-compose">{result.composeId}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- aarch64 Row -->
+      <div class="arch-section">
+        <h3 class="arch-title">aarch64</h3>
+        <div class="distro-row">
+          {groups.filter(g => g.arch === 'aarch64' && g.weekly.length > 0).map(group => (
+            <div class="distro-card">
+              <div class="distro-card-header">
+                <h4 class="distro-card-title">{group.distro}</h4>
+                <span class="distro-card-summary">{group.weekly.length} day{group.weekly.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div class="distro-card-content">
+                <div class="weekly-histogram-container">
+                  <svg viewBox="0 0 400 150" class="weekly-histogram-svg">
+                    <!-- Y-axis labels (no axis lines) -->
+                    <text x="25" y="18" text-anchor="end" class="weekly-axis-label">100%</text>
+                    <text x="25" y="68" text-anchor="end" class="weekly-axis-label">50%</text>
+                    <text x="25" y="115" text-anchor="end" class="weekly-axis-label">0%</text>
+                    
+                    <!-- Grid lines -->
+                    <line x1="30" y1="15" x2="380" y2="15" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    <line x1="30" y1="65" x2="380" y2="65" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    
+                    <!-- Histogram bars -->
+                    {group.weekly.map((result, idx) => {
+                      const passed = result.summary.passed;
+                      const failed = result.summary.failed;
+                      const skipped = result.summary.skipped;
+                      const total = result.summary.total;
+                      const passRate = (passed / (passed + failed)) * 100;
+                      const barWidth = 340 / group.weekly.length;
+                      const x = 30 + (idx * barWidth) + (barWidth * 0.15);
+                      const barActualWidth = barWidth * 0.7;
+                      const height = (passRate / 100) * 100;
+                      const y = 115 - height;
+                      const color = passRate >= 80 ? '#059669' : passRate >= 60 ? '#d97706' : '#dc2626';
+                      const date = getComposeDate(result.composeId);
+                      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      
+                      return (
+                        <g>
+                          <rect 
+                            x={x} 
+                            y={y} 
+                            width={barActualWidth} 
+                            height={height}
+                            fill={color}
+                            class="weekly-histogram-bar"
+                          />
+                          <text 
+                            x={x + barActualWidth / 2} 
+                            y={y - 5} 
+                            text-anchor="middle" 
+                            class="weekly-bar-percentage"
+                          >
+                            {passRate.toFixed(0)}%
+                          </text>
+                          <text 
+                            x={x + barActualWidth / 2} 
+                            y="130" 
+                            text-anchor="middle" 
+                            class="weekly-date-label"
+                            data-weekly-bar={`weekly-${group.distro}-${group.arch}-${idx}`}
+                          >
+                            {dateStr}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                  
+                  <!-- Expandable details for each bar -->
+                  {group.weekly.map((result, idx) => {
+                    const passed = result.summary.passed;
+                    const failed = result.summary.failed;
+                    const skipped = result.summary.skipped;
+                    const date = getComposeDate(result.composeId);
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    
+                    return (
+                      <div class="weekly-bar-details" data-weekly-details={`weekly-${group.distro}-${group.arch}-${idx}`}>
+                        <div class="weekly-details-header">{dateStr}</div>
+                        <div class="weekly-details-grid">
+                          <div class="detail-item">
+                            <span class="detail-color passed"></span>
+                            <span class="detail-text">Passed: {passed}</span>
+                          </div>
+                          <div class="detail-item">
+                            <span class="detail-color failed"></span>
+                            <span class="detail-text">Failed: {failed}</span>
+                          </div>
+                          <div class="detail-item">
+                            <span class="detail-color skipped"></span>
+                            <span class="detail-text">Skipped: {skipped}</span>
+                          </div>
+                        </div>
+                        <a href={`/dashboard/results/${result.composeId}/${group.arch}`} class="detail-link">
+                          View Full Results →
+                        </a>
+                        <div class="detail-compose">{result.composeId}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Monthly Trends -->
+    <section class="section monthly-section">
+      <h2 class="section-title">Monthly Trends (Past 30 Days)</h2>
+      
+      <!-- x86_64 Row -->
+      <div class="arch-section">
+        <h3 class="arch-title">x86_64</h3>
+        <div class="distro-row">
+          {groups.filter(g => g.arch === 'x86_64' && g.monthly.length > 0).map(group => (
+            <div class="distro-card">
+              <div class="distro-card-header">
+                <h4 class="distro-card-title">{group.distro}</h4>
+                <span class="distro-card-summary">{group.monthly.length} compose{group.monthly.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div class="distro-card-content">
+                <div class="line-chart">
+                  <svg viewBox="0 0 400 180" class="chart-svg">
+                    <!-- Grid lines -->
+                    <line x1="30" y1="10" x2="30" y2="150" stroke="#e5e7eb" stroke-width="1.5"/>
+                    <line x1="30" y1="150" x2="380" y2="150" stroke="#e5e7eb" stroke-width="1.5"/>
+                    
+                    <!-- Y-axis labels -->
+                    <text x="25" y="13" text-anchor="end" class="chart-label">100%</text>
+                    <text x="25" y="83" text-anchor="end" class="chart-label">50%</text>
+                    <text x="25" y="150" text-anchor="end" class="chart-label">0%</text>
+                    
+                    <!-- Horizontal grid lines -->
+                    <line x1="30" y1="10" x2="380" y2="10" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    <line x1="30" y1="80" x2="380" y2="80" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    
+                    <!-- Data points and line -->
+                    {(() => {
+                      const points = group.monthly.map((result, idx) => {
+                        const passRate = (result.summary.passed / (result.summary.passed + result.summary.failed)) * 100;
+                        const x = 30 + (idx / (group.monthly.length - 1 || 1)) * 350;
+                        const y = 150 - (passRate / 100) * 140;
+                        return { x, y, passRate, result };
+                      });
+                      
+                      // Create line path
+                      const linePath = points.map((p, i) => 
+                        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                      ).join(' ');
+                      
+                      return (
+                        <>
+                          <!-- Line -->
+                          <path d={linePath} fill="none" stroke="#3c6eb4" stroke-width="2"/>
+                          
+                          <!-- Points -->
+                          {points.map(p => {
+                            const color = p.passRate >= 80 ? '#059669' : p.passRate >= 60 ? '#d97706' : '#dc2626';
+                            return (
+                              <a href={`/dashboard/results/${p.result.composeId}/${group.arch}`}>
+                                <circle 
+                                  cx={p.x} 
+                                  cy={p.y} 
+                                  r="4" 
+                                  fill={color}
+                                  class="chart-point"
+                                />
+                                <title>{p.passRate.toFixed(1)}%</title>
+                              </a>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+                  </svg>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- aarch64 Row -->
+      <div class="arch-section">
+        <h3 class="arch-title">aarch64</h3>
+        <div class="distro-row">
+          {groups.filter(g => g.arch === 'aarch64' && g.monthly.length > 0).map(group => (
+            <div class="distro-card">
+              <div class="distro-card-header">
+                <h4 class="distro-card-title">{group.distro}</h4>
+                <span class="distro-card-summary">{group.monthly.length} compose{group.monthly.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div class="distro-card-content">
+                <div class="line-chart">
+                  <svg viewBox="0 0 400 180" class="chart-svg">
+                    <!-- Grid lines -->
+                    <line x1="30" y1="10" x2="30" y2="150" stroke="#e5e7eb" stroke-width="1.5"/>
+                    <line x1="30" y1="150" x2="380" y2="150" stroke="#e5e7eb" stroke-width="1.5"/>
+                    
+                    <!-- Y-axis labels -->
+                    <text x="25" y="13" text-anchor="end" class="chart-label">100%</text>
+                    <text x="25" y="83" text-anchor="end" class="chart-label">50%</text>
+                    <text x="25" y="150" text-anchor="end" class="chart-label">0%</text>
+                    
+                    <!-- Horizontal grid lines -->
+                    <line x1="30" y1="10" x2="380" y2="10" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    <line x1="30" y1="80" x2="380" y2="80" stroke="#f3f4f6" stroke-width="1" stroke-dasharray="2 2"/>
+                    
+                    <!-- Data points and line -->
+                    {(() => {
+                      const points = group.monthly.map((result, idx) => {
+                        const passRate = (result.summary.passed / (result.summary.passed + result.summary.failed)) * 100;
+                        const x = 30 + (idx / (group.monthly.length - 1 || 1)) * 350;
+                        const y = 150 - (passRate / 100) * 140;
+                        return { x, y, passRate, result };
+                      });
+                      
+                      // Create line path
+                      const linePath = points.map((p, i) => 
+                        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                      ).join(' ');
+                      
+                      return (
+                        <>
+                          <!-- Line -->
+                          <path d={linePath} fill="none" stroke="#3c6eb4" stroke-width="2"/>
+                          
+                          <!-- Points -->
+                          {points.map(p => {
+                            const color = p.passRate >= 80 ? '#059669' : p.passRate >= 60 ? '#d97706' : '#dc2626';
+                            return (
+                              <a href={`/dashboard/results/${p.result.composeId}/${group.arch}`}>
+                                <circle 
+                                  cx={p.x} 
+                                  cy={p.y} 
+                                  r="4" 
+                                  fill={color}
+                                  class="chart-point"
+                                />
+                                <title>{p.passRate.toFixed(1)}%</title>
+                              </a>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+                  </svg>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   </main>
 </Layout>
 
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Handle weekly histogram date label clicks
+    const dateLabels = document.querySelectorAll('.weekly-date-label');
+    
+    console.log('Found date labels:', dateLabels.length);
+    
+    dateLabels.forEach(label => {
+      label.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const barId = label.getAttribute('data-weekly-bar');
+        const details = document.querySelector(`[data-weekly-details="${barId}"]`);
+        
+        console.log('Clicked date:', barId, 'Details found:', !!details);
+        
+        if (details) {
+          // Close all other details in the same container
+          const container = label.closest('.weekly-histogram-container');
+          if (container) {
+            container.querySelectorAll('.weekly-bar-details').forEach(d => {
+              if (d !== details) {
+                d.classList.remove('expanded');
+              }
+            });
+          }
+          
+          // Toggle current details
+          details.classList.toggle('expanded');
+        }
+      });
+    });
+  });
+</script>
+
 <style>
+  .dashboard-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
   .dashboard-header {
     text-align: center;
-    padding: 32px 24px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    margin-bottom: 32px;
+    margin-bottom: 3rem;
   }
-  
+
+  .header-content-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+
+  .fedora-logo {
+    height: 50px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .header-text {
+    text-align: left;
+  }
+
   .dashboard-header h1 {
-    margin: 0 0 8px 0;
-    font-size: 36px;
+    font-size: 2.5rem;
     font-weight: 800;
+    color: #294172;
+    margin-bottom: 0.5rem;
   }
-  
+
   .subtitle {
-    margin: 0;
-    font-size: 18px;
-    opacity: 0.9;
+    font-size: 1.125rem;
+    color: #6b7280;
   }
-  
-  .error-banner {
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 8px;
-    padding: 12px;
-    margin-top: 16px;
-    color: #fef2f2;
+
+  /* Sections */
+  .section {
+    margin-bottom: 4rem;
   }
-  
-  .error-banner p {
-    margin: 0;
-    font-size: 14px;
+
+  .section-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #294172;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 3px solid #3c6eb4;
   }
-  
-  .dashboard-content {
+
+  /* Architecture Sections */
+  .arch-section {
+    margin-bottom: 3rem;
+  }
+
+  .arch-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #374151;
+    font-family: monospace;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    border-radius: 0.5rem;
+    border-left: 4px solid #3c6eb4;
+  }
+
+  /* Today's Results Grid */
+  .today-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
     max-width: 1400px;
     margin: 0 auto;
-    padding: 0 24px;
   }
-  
+
+  .today-card {
+    display: block;
+    padding: 1.5rem;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .today-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    border-color: #3c6eb4;
+  }
+
+  .card-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f3f4f6;
+  }
+
+  .card-header h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #294172;
+    margin: 0;
+  }
+
+  .time-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .badge-today {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #059669;
+  }
+
+  .badge-recent {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+  }
+
+  .badge-old {
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #9ca3af;
+  }
+
+  .arch-badge {
+    padding: 0.25rem 0.75rem;
+    background: #f3f4f6;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: monospace;
+    color: #374151;
+  }
+
+  /* Donut Chart */
+  .pie-container {
+    display: flex;
+    justify-content: center;
+    margin: 1rem 0;
+  }
+
+  .pie-chart {
+    width: 200px;
+    height: 200px;
+  }
+
+  .donut-arc {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform-origin: center;
+  }
+
+  .donut-arc:hover {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+
+  .donut-percentage {
+    font-size: 32px;
+    font-weight: 700;
+    fill: #111827;
+    dominant-baseline: middle;
+    text-anchor: middle;
+  }
+
+  .donut-label {
+    font-size: 11px;
+    fill: #6b7280;
+    font-weight: 500;
+    dominant-baseline: middle;
+    text-anchor: middle;
+  }
+
+  /* Card Legend */
+  .card-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: #f9fafb;
+    border-radius: 0.375rem;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+
+  .legend-color.passed {
+    background: #059669;
+  }
+
+  .legend-color.failed {
+    background: #dc2626;
+  }
+
+  .legend-color.skipped {
+    background: #d97706;
+  }
+
+  .legend-text {
+    font-size: 0.75rem;
+    color: #374151;
+    font-weight: 500;
+  }
+
+  .compose-id {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-family: monospace;
+    text-align: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f3f4f6;
+  }
+
+  /* Distro Row Layout */
+  .distro-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  .distro-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .distro-card-header {
+    padding: 0.75rem 1rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .distro-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+  }
+
+  .distro-card-summary {
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .distro-card-content {
+    padding: 0;
+  }
+
+  /* Weekly Histogram */
+  .weekly-histogram-container {
+    padding: 1rem;
+    background: white;
+    position: relative;
+  }
+
+  .weekly-histogram-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .weekly-histogram-bar {
+    cursor: pointer;
+    transition: opacity 0.2s ease, filter 0.2s ease;
+  }
+
+  .weekly-histogram-bar:hover {
+    opacity: 0.85;
+    filter: brightness(1.1);
+  }
+
+  .weekly-axis-label {
+    font-size: 11px;
+    fill: #6b7280;
+    font-weight: 500;
+  }
+
+  .weekly-date-label {
+    font-size: 11px;
+    fill: #3c6eb4;
+    font-weight: 600;
+    cursor: pointer;
+    transition: fill 0.2s ease;
+  }
+
+  .weekly-date-label:hover {
+    fill: #2e5a94;
+    text-decoration: underline;
+  }
+
+  .weekly-bar-percentage {
+    font-size: 12px;
+    fill: #111827;
+    font-weight: 700;
+  }
+
+  .weekly-bar-details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: #f9fafb;
+    border-top: 0 solid #e5e7eb;
+    margin-top: 0;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease, border-top-width 0.3s ease;
+  }
+
+  .weekly-bar-details.expanded {
+    max-height: 300px;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 0.5rem;
+    opacity: 1;
+  }
+
+  .weekly-details-header {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #111827;
+    padding: 0.75rem 1rem 0.5rem;
+  }
+
+  .weekly-details-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0 1rem 0.75rem;
+  }
+
+  .detail-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .detail-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+
+  .detail-color.passed {
+    background: #059669;
+  }
+
+  .detail-color.failed {
+    background: #dc2626;
+  }
+
+  .detail-color.skipped {
+    background: #d97706;
+  }
+
+  .detail-text {
+    font-size: 0.75rem;
+    color: #374151;
+    font-weight: 500;
+  }
+
+  .detail-link {
+    display: block;
+    text-align: center;
+    padding: 0.5rem;
+    margin: 0.5rem 1rem 0.25rem;
+    background: #3c6eb4;
+    color: white;
+    text-decoration: none;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: background 0.2s ease;
+  }
+
+  .detail-link:hover {
+    background: #2e5a94;
+  }
+
+  .detail-compose {
+    font-size: 0.625rem;
+    color: #9ca3af;
+    font-family: monospace;
+    text-align: center;
+    padding: 0.25rem 1rem 0.75rem;
+  }
+
+  /* Line Chart */
+  .line-chart {
+    padding: 1.5rem;
+  }
+
+  .chart-svg {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1rem;
+  }
+
+  .chart-label {
+    font-size: 12px;
+    fill: #6b7280;
+  }
+
+  .chart-point {
+    cursor: pointer;
+    transition: r 0.2s ease;
+  }
+
+  .chart-point:hover {
+    r: 8;
+  }
+
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .legend-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background: #f9fafb;
+    border-radius: 0.375rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .legend-item:hover {
+    background: #e5e7eb;
+    transform: translateY(-2px);
+  }
+
+  .legend-date {
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .legend-value {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #111827;
+  }
+
+  /* Responsive */
   @media (max-width: 768px) {
-    .dashboard-header {
-      padding: 24px 16px;
-    }
-    
     .dashboard-header h1 {
-      font-size: 28px;
+      font-size: 1.75rem;
     }
-    
-    .subtitle {
-      font-size: 16px;
+
+    .today-grid {
+      grid-template-columns: 1fr;
     }
-    
-    .dashboard-content {
-      padding: 0 16px;
+
+    .bar-chart {
+      min-height: 200px;
+      padding: 1rem;
+    }
+
+    .bar {
+      max-width: 40px;
     }
   }
 </style>
+</Layout>

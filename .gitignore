@@ -16,9 +16,20 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+.env.local
+
+# test data for local development
+test-data/
+results/
 
 # macOS-specific files
 .DS_Store
 
 # jetbrains setting folder
 .idea/
+
+# VS Code
+.vscode/
+
+# deployment scripts (if they contain credentials)
+# scripts/deploy.sh
