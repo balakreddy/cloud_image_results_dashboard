@@ -3,6 +3,7 @@
   "type": "module",
   "version": "1.0.0",
   "description": "Fedora Cloud Image Test Results Dashboard",
+  "license": "MIT",
   "scripts": {
     "dev": "astro dev",
     "dev:offline": "USE_LOCAL_CACHE=true astro dev",

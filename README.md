@@ -98,3 +98,7 @@ npm run build
 | `/dashboard/api/composes.json`                | JSON list of available compose IDs          |
 | `/dashboard/api/results/{compose}/index.json` | JSON results for all arches of a compose    |
 | `/dashboard/api/results/{compose}/{arch}.json`| JSON results for a specific compose + arch  |
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
