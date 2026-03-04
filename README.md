@@ -31,7 +31,6 @@ Supported compose patterns:
 /
 ├── public/
 │   ├── favicon.svg
-│   ├── fedora-logo.png
 │   └── redirect-root.html
 ├── scripts/
 │   └── test-connection.ts

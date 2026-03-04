@@ -199,7 +199,6 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
     <!-- Header -->
     <header class="dashboard-header">
       <div class="header-content-wrapper">
-        <img src={`${import.meta.env.BASE_URL}/fedora-logo.png`} alt="Fedora Logo" class="fedora-logo" />
         <div class="header-text">
           <h1>Fedora Cloud Image Test Results</h1>
           <p class="subtitle">Automated testing on Azure infrastructure</p>
@@ -770,12 +769,6 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
     align-items: center;
     justify-content: center;
     gap: 1.5rem;
-  }
-
-  .fedora-logo {
-    height: 50px;
-    width: auto;
-    object-fit: contain;
   }
 
   .header-text {
