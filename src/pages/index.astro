@@ -10,8 +10,8 @@ import { extractVersion, formatPercent } from '@/lib/utils/formatters';
 import type { TestResult } from '@/types';
 
 // Fetch all compose results for historical analysis
-// Enable discovery to get all available composes from Azure (not just known list)
-const composeIds = await getComposeIds(true);
+// Manifest-based: no longer needs discovery parameter
+const composeIds = await getComposeIds();
 
 // Get all results
 const allResults: TestResult[] = [];
@@ -182,8 +182,11 @@ for (const group of groupMap.values()) {
     .slice(-30);
 }
 
-// Define distro order
-const distroOrder = ['Rawhide', 'ELN', 'Fedora 43', 'Fedora 42'];
+// Dynamically compute distro order: Rawhide → Fedora versions (desc) → ELN
+const numericDistros = [...new Set(allResults.map(r => getDistroType(r.composeId)))]
+  .filter(d => d.startsWith('Fedora ') && !isNaN(Number(d.replace('Fedora ', ''))))
+  .sort((a, b) => Number(b.replace('Fedora ', '')) - Number(a.replace('Fedora ', '')));
+const distroOrder = ['Rawhide', ...numericDistros, 'ELN'];
 const archOrder = ['x86_64', 'aarch64'];
 
 // Sort by arch first, then distro (for row-based layout)
@@ -201,7 +204,7 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
       <div class="header-content-wrapper">
         <div class="header-text">
           <h1>Fedora Cloud Image Test Results</h1>
-          <p class="subtitle">Automated testing on Azure infrastructure</p>
+          <p class="subtitle" style="text-align: center;">Automated testing on Azure infrastructure</p>
         </div>
       </div>
     </header>

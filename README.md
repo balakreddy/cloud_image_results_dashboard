@@ -4,15 +4,21 @@ A web dashboard that displays automated test results for Fedora Cloud images run
 
 ## Features
 
-- **Latest Results** — Shows the most recent test results per distro (Rawhide, ELN, Fedora 43, Fedora 42) and architecture (x86_64, aarch64) with donut charts
+- **Latest Results** — Shows the most recent test results per distro (Rawhide, Fedora 44, 43, 42, ELN) and architecture (x86_64, aarch64) with donut charts
 - **Weekly & Monthly Trends** — Inline bar charts showing daily pass rates over 7-day and 30-day windows
 - **Drill-down Detail Pages** — Click any result card to view individual test suites and test cases with pass/fail/skip status and error messages
-- **Auto-discovery** — Automatically finds new composes from Azure Blob Storage by probing date-based patterns
+- **Manifest-based** — Uses `composes.json` manifest to list available test results
 - **Static Build** — Generates static HTML at build time; deployable anywhere
 
 ## Data Source
 
-Test results are fetched from Azure Blob Storage at `fedoratestresults.z5.web.core.windows.net`. The blob structure follows:
+Test results are fetched from Azure Blob Storage at `fedoratestresults.z5.web.core.windows.net`. Available composes are listed in `composes.json` manifest:
+
+```
+https://fedoratestresults.z5.web.core.windows.net/composes.json
+```
+
+The blob structure follows:
 
 ```
 {ComposeId}/{architecture}/junit.xml
@@ -41,7 +47,7 @@ Supported compose patterns:
 │   │   ├── azure/
 │   │   │   ├── client.ts          # HTTP client for Azure Blob Storage
 │   │   │   ├── config.ts          # Azure endpoint configuration
-│   │   │   └── discovery.ts       # Auto-discover available composes
+│   │   │   └── manifest.ts        # Compose manifest utilities and filtering
 │   │   ├── parsers/
 │   │   │   └── junit.ts           # JUnit XML parser
 │   │   ├── services/

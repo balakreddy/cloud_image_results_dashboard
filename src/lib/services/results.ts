@@ -3,17 +3,24 @@
  * Simple, focused interface - extensible for future enhancements
  */
 
-import { downloadBlob, blobExists } from '../azure/client';
-import { getAvailableComposes } from '../azure/discovery';
+import { downloadBlob } from '../azure/client';
+import { getAvailableComposes, getJunitPath, getArchitecturesForCompose, getComposeEntries, composeIdFromEntry } from '../azure/manifest';
 import { parseJunitXml } from '../parsers/junit';
-import type { TestResult } from '@/types';
+import type { TestResult, ComposeEntry } from '@/types';
 
 /**
  * Get all available compose IDs
- * @param useDiscovery - If true, actively discover composes; otherwise use known list
+ * @param useDiscovery - Ignored, kept for backwards compatibility
  */
-export async function getComposeIds(useDiscovery: boolean = false): Promise<string[]> {
-  return getAvailableComposes(useDiscovery);
+export async function getComposeIds(_useDiscovery: boolean = false): Promise<string[]> {
+  return getAvailableComposes();
+}
+
+/**
+ * Get all compose entries with full metadata
+ */
+export async function getAllComposeEntries(): Promise<ComposeEntry[]> {
+  return getComposeEntries();
 }
 
 /**
@@ -23,7 +30,13 @@ export async function getTestResult(
   composeId: string,
   architecture: string
 ): Promise<TestResult | null> {
-  const blobPath = `${composeId}/${architecture}/junit.xml`;
+  // Get the junit path from the manifest
+  const blobPath = await getJunitPath(composeId, architecture);
+  
+  if (!blobPath) {
+    console.error(`No junit path found in manifest for ${composeId}/${architecture}`);
+    return null;
+  }
   
   try {
     const xml = await downloadBlob(blobPath);
@@ -35,10 +48,15 @@ export async function getTestResult(
 }
 
 /**
- * Get all test results for a compose (both architectures)
+ * Get all test results for a compose (all available architectures)
  */
 export async function getComposeResults(composeId: string): Promise<TestResult[]> {
-  const architectures = ['x86_64', 'aarch64'];
+  // Get available architectures from manifest
+  const architectures = await getArchitecturesForCompose(composeId);
+  
+  if (architectures.length === 0) {
+    return [];
+  }
   
   const results = await Promise.all(
     architectures.map(arch => getTestResult(composeId, arch))
@@ -62,13 +80,9 @@ export async function getLatestResults(limit: number = 10): Promise<TestResult[]
 }
 
 /**
- * Check if a compose has test results
+ * Check if a compose has test results (in manifest)
  */
 export async function composeExists(composeId: string): Promise<boolean> {
-  // Check if at least one architecture has results
-  const x86Exists = await blobExists(`${composeId}/x86_64/junit.xml`);
-  if (x86Exists) return true;
-  
-  const aarch64Exists = await blobExists(`${composeId}/aarch64/junit.xml`);
-  return aarch64Exists;
+  const architectures = await getArchitecturesForCompose(composeId);
+  return architectures.length > 0;
 }

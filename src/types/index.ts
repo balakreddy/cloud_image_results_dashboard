@@ -54,3 +54,22 @@ export interface ParsedBlobPath {
   isJunit: boolean;
   isHtml: boolean;
 }
+
+// Compose manifest types (from composes.json)
+export interface ArchResult {
+  junit_xml: string;
+  html_report: string;
+}
+
+export interface ComposeEntry {
+  distro: string;
+  version: string;
+  date: string;
+  build: string;
+  results: Record<string, ArchResult>;
+}
+
+export interface ComposesManifest {
+  last_updated: string;
+  composes: ComposeEntry[];
+}
