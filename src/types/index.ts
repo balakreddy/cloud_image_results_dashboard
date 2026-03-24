@@ -27,6 +27,7 @@ export interface TestResult {
   composeId: string;
   architecture: string;
   timestamp: Date;
+  htmlReportUrl?: string;
   suites: TestSuite[];
   summary: {
     total: number;

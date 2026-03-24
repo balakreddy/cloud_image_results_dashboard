@@ -4,7 +4,8 @@
  */
 
 import { downloadBlob } from '../azure/client';
-import { getAvailableComposes, getJunitPath, getArchitecturesForCompose, getComposeEntries, composeIdFromEntry } from '../azure/manifest';
+import { getBlobUrl } from '../azure/config';
+import { getAvailableComposes, getJunitPath, getHtmlReportPath, getArchitecturesForCompose, getComposeEntries, composeIdFromEntry } from '../azure/manifest';
 import { parseJunitXml } from '../parsers/junit';
 import type { TestResult, ComposeEntry } from '@/types';
 
@@ -40,7 +41,15 @@ export async function getTestResult(
   
   try {
     const xml = await downloadBlob(blobPath);
-    return parseJunitXml(xml, composeId, architecture);
+    const result = parseJunitXml(xml, composeId, architecture);
+
+    // Add HTML report URL from manifest
+    const htmlPath = await getHtmlReportPath(composeId, architecture);
+    if (result && htmlPath) {
+      result.htmlReportUrl = getBlobUrl(htmlPath);
+    }
+    
+    return result;
   } catch (error) {
     console.error(`Failed to fetch test result for ${composeId}/${architecture}:`, error);
     return null;

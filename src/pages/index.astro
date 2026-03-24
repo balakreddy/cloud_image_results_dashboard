@@ -232,7 +232,7 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
             const badge = getRelativeTimeBadge(composeDate);
             
             return (
-              <a href={`/dashboard/results/${group.today!.composeId}/${group.arch}`} class="today-card">
+              <a href={group.today!.htmlReportUrl || `/dashboard/results/${group.today!.composeId}/${group.arch}`} class="today-card">
                 <div class="card-header">
                   <h3>{group.distro}</h3>
                   <span class={`time-badge ${badge.colorClass}`}>{badge.text}</span>
@@ -298,7 +298,7 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
             const badge = getRelativeTimeBadge(composeDate);
             
             return (
-              <a href={`/dashboard/results/${group.today!.composeId}/${group.arch}`} class="today-card">
+              <a href={group.today!.htmlReportUrl || `/dashboard/results/${group.today!.composeId}/${group.arch}`} class="today-card">
                 <div class="card-header">
                   <h3>{group.distro}</h3>
                   <span class={`time-badge ${badge.colorClass}`}>{badge.text}</span>
@@ -445,7 +445,7 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
                             <span class="detail-text">Skipped: {skipped}</span>
                           </div>
                         </div>
-                        <a href={`/dashboard/results/${result.composeId}/${group.arch}`} class="detail-link">
+                        <a href={result.htmlReportUrl || `/dashboard/results/${result.composeId}/${group.arch}`} class="detail-link">
                           View Full Results →
                         </a>
                         <div class="detail-compose">{result.composeId}</div>
@@ -554,7 +554,7 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
                             <span class="detail-text">Skipped: {skipped}</span>
                           </div>
                         </div>
-                        <a href={`/dashboard/results/${result.composeId}/${group.arch}`} class="detail-link">
+                        <a href={result.htmlReportUrl || `/dashboard/results/${result.composeId}/${group.arch}`} class="detail-link">
                           View Full Results →
                         </a>
                         <div class="detail-compose">{result.composeId}</div>
@@ -622,7 +622,7 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
                           {points.map(p => {
                             const color = p.passRate >= 80 ? '#059669' : p.passRate >= 60 ? '#d97706' : '#dc2626';
                             return (
-                              <a href={`/dashboard/results/${p.result.composeId}/${group.arch}`}>
+                              <a href={p.result.htmlReportUrl || `/dashboard/results/${p.result.composeId}/${group.arch}`}>
                                 <circle 
                                   cx={p.x} 
                                   cy={p.y} 
@@ -694,7 +694,7 @@ const groups = Array.from(groupMap.values()).sort((a, b) => {
                           {points.map(p => {
                             const color = p.passRate >= 80 ? '#059669' : p.passRate >= 60 ? '#d97706' : '#dc2626';
                             return (
-                              <a href={`/dashboard/results/${p.result.composeId}/${group.arch}`}>
+                              <a href={p.result.htmlReportUrl || `/dashboard/results/${p.result.composeId}/${group.arch}`}>
                                 <circle 
                                   cx={p.x} 
                                   cy={p.y} 
