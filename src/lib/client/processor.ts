@@ -140,7 +140,9 @@ function deduplicateByDate(results: TestResult[], maxDays: number): TestResult[]
     const byDate = new Map<string, TestResult>();
 
     for (const result of results) {
-        const dateKey = getComposeDate(result.composeId).toISOString().slice(0, 10);
+        const date = getComposeDate(result.composeId);
+        // Use local date components to avoid UTC timezone shift
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         const existing = byDate.get(dateKey);
         if (!existing || result.composeId > existing.composeId) {
             byDate.set(dateKey, result);

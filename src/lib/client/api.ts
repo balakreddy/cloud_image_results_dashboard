@@ -88,8 +88,13 @@ export function filterComposeEntries(manifest: ComposeManifest): ComposeEntry[] 
 
     const allowedVersions = ['Rawhide', ...numericVersions, 'ELN'];
 
+    // Limit to last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoffDate = thirtyDaysAgo.toISOString().slice(0, 10);
+
     return manifest.composes
-        .filter(c => allowedVersions.includes(c.version))
+        .filter(c => allowedVersions.includes(c.version) && c.date >= cutoffDate)
         .sort((a,b) =>
             allowedVersions.indexOf(a.version) - allowedVersions.indexOf(b.version) ||
             b.date.localeCompare(a.date)
