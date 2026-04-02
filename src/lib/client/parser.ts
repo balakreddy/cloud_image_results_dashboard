@@ -57,7 +57,7 @@ function parseSuite(element: Element): TestSuite {
     };
 
     return {
-        name:element.getAttribute('name') || 'Unknown Suite',
+        name: element.getAttribute('name') || 'Unknown Suite',
         tests: testcases.length,
         failures: actualCounts.failed,
         errors: actualCounts.errors,

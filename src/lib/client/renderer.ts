@@ -51,10 +51,10 @@ function renderTodayCard(group: GroupedResult): string {
     const skipped = result.summary.skipped;
     const total = passed + failed;
 
-    const passedAngle = (passed / total) * 360;
+    const passedAngle = total > 0 ? (passed / total) * 360 : 0;
     const badge = getRelativeTimeBadge(getComposeDate(result.composeId));
 
-    const passRate = (passed / total) * 100;
+    const passRate = total > 0 ? (passed / total) * 100 : 0;
 
     return `
     <a href="${result.htmlReportUrl}" class="today-card" target="_blank">
@@ -120,7 +120,7 @@ function renderWeeklyCard(group: GroupedResult): string {
         const passed = result.summary.passed;
         const failed = result.summary.failed;
         const total = passed + failed;
-        const passRate = (passed / total) * 100;
+        const passRate = total > 0 ? (passed / total) * 100 : 0;
         const color = passRate >= 80 ? '#059669' : passRate >= 60 ? '#d97706' : '#dc2626';
         const height = (passRate / 100) * 100;
 
@@ -177,7 +177,8 @@ export function renderMonthlySection(groups: GroupedResult[]): void {
  */
 function renderMonthlyCard(group: GroupedResult): string {
     const points = group.monthly.map((result, idx) => {
-        const passRate = (result.summary.passed / (result.summary.passed + result.summary.failed)) * 100;
+        const total = result.summary.passed + result.summary.failed;
+        const passRate = total > 0 ? (result.summary.passed / total) * 100 : 0;
         const x = 30 + (idx / (group.monthly.length - 1 || 1)) * 350;
         const y = 150 - (passRate / 100) * 140;
         return { x, y, passRate, result };

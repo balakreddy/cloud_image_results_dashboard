@@ -1,6 +1,6 @@
 /**
  * Client-side API for fetching dashboard data
- * Uses browers native fetch() - no npm dependencies
+ * Uses browser's native fetch() - no npm dependencies
  */
 
 import type { ComposeManifest, ComposeEntry, TestResult } from "./types";
@@ -9,7 +9,7 @@ import { parseJunitXml } from './parser';
 // Azure blob storage endpoint
 const ENDPOINT = 'https://fedoratestresults.z5.core.windows.net/';
 
-// Cachec for manifest
+// Cache for manifest
 let manifestCache: {data: ComposeManifest; expires: number} | null = null;
 const CACHE_TTL = 5* 60*1000; // 5 minutes
 
@@ -58,7 +58,7 @@ export async function fetchJunitXml(blobPath: string): Promise<string> {
  * Build HTML report URL from blob path
  */
 
-export function getHTMLReportUrl(htmlPath: string): string {
+export function getHtmlReportUrl(htmlPath: string): string {
     return `${ENDPOINT}${htmlPath}`;
 }
 
@@ -82,11 +82,11 @@ export function composeIdFromEntry(entry: ComposeEntry): string {
  * Filter manifest to relevant composes (Rawhide, ELN, latest 2 releases)
  */
 export function filterComposeEntries(manifest: ComposeManifest): ComposeEntry[] {
-    const numbericVersions = [...new Set(
+    const numericVersions = [...new Set(
         manifest.composes.map(c => c.version).filter(v => !isNaN(Number(v)))
     )].sort((a, b) => Number(b) - Number(a)).slice(0, 2); // Get latest 2 numeric versions
 
-    const allowedVersions = ['Rawhide', ...numbericVersions, 'ELN'];
+    const allowedVersions = ['Rawhide', ...numericVersions, 'ELN'];
 
     return manifest.composes
         .filter(c => allowedVersions.includes(c.version))
@@ -112,7 +112,7 @@ export async function fetchAllResults(manifest: ComposeManifest): Promise<TestRe
         for (const [arch, archResult] of Object.entries(entry.results)) {
             fetchTasks.push(
                 fetchJunitXml(archResult.junit_xml)
-                .then(xml => parseJunitXml(xml, composeId, arch, getHTMLReportUrl(archResult.html_report)))
+                .then(xml => parseJunitXml(xml, composeId, arch, getHtmlReportUrl(archResult.html_report)))
                 .catch(err => {
                     console.warn(`Failed to fetch ${composeId}/${arch}:`, err);
                     return null;
