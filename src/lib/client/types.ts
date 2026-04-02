@@ -45,8 +45,8 @@ export interface TestResult {
 
 // Architecture result from the composes.json manifest
 export interface ArchResult {
-    junitPath: string;
-    htmlReportPath?: string;
+    junit_xml: string;
+    html_report: string;
 }
 
 // Compose entry from the composes.json manifest
