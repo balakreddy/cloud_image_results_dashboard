@@ -55,7 +55,7 @@ function renderTodayCard(group: GroupedResult): string {
     const badge = getRelativeTimeBadge(getComposeDate(result.composeId));
 
     return `
-    <a href="${result.htmlReportUrl}" class="today-card" target="_blank" rel="noopener noreferrer">
+    <a href="${escapeAttr(result.htmlReportUrl || '')}" class="today-card" target="_blank" rel="noopener noreferrer">
       <div class="card-header">
         <h3>${group.distro}</h3>
         <span class="time-badge ${badge.colorClass}">${badge.text}</span>
@@ -123,7 +123,7 @@ function renderWeeklyCard(group: GroupedResult): string {
         const height = (passRate / 100) * 100;
 
         return `
-      <a href="${result.htmlReportUrl}" class="bar-link" target="_blank" rel="noopener noreferrer">
+      <a href="${escapeAttr(result.htmlReportUrl || '')}" class="bar-link" target="_blank" rel="noopener noreferrer">
         <rect x="${20 + idx * 50}" y="${110 - height}" width="35" height="${height}" fill="${color}" class="bar"/>
         <title>${passRate.toFixed(1)}%</title>
       </a>
@@ -187,7 +187,7 @@ function renderMonthlyCard(group: GroupedResult): string {
     const pointElements = points.map(p => {
         const color = p.passRate >= 80 ? '#059669' : p.passRate >= 60 ? '#d97706' : '#dc2626';
         return `
-      <a href="${p.result.htmlReportUrl}" target="_blank" rel="noopener noreferrer">
+      <a href="${escapeAttr(p.result.htmlReportUrl || '')}" target="_blank" rel="noopener noreferrer">
         <circle cx="${p.x}" cy="${p.y}" r="4" fill="${color}" class="chart-point"/>
         <title>${p.passRate.toFixed(1)}%</title>
       </a>
@@ -247,6 +247,18 @@ function escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * Escape attribute values to prevent injection
+ */
+function escapeAttr(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 /**

@@ -13,7 +13,7 @@ export interface TestCase {
     failure?: string;
 }
 
-// Test suite containg test cases
+// Test suite containing test cases
 export interface TestSuite {
     name: string;
     tests: number;

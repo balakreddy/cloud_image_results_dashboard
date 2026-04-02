@@ -7,7 +7,7 @@ import type { ComposeManifest, ComposeEntry, TestResult } from "./types";
 import { parseJunitXml } from './parser';
 
 // Azure blob storage endpoint
-const ENDPOINT = 'https://fedoratestresults.z5.core.windows.net/';
+const ENDPOINT = 'https://fedoratestresults.z5.web.core.windows.net/';
 
 // Cache for manifest
 let manifestCache: {data: ComposeManifest; expires: number} | null = null;
