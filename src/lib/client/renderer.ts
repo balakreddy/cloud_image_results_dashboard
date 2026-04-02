@@ -54,10 +54,8 @@ function renderTodayCard(group: GroupedResult): string {
     const passedAngle = total > 0 ? (passed / total) * 360 : 0;
     const badge = getRelativeTimeBadge(getComposeDate(result.composeId));
 
-    const passRate = total > 0 ? (passed / total) * 100 : 0;
-
     return `
-    <a href="${result.htmlReportUrl}" class="today-card" target="_blank">
+    <a href="${result.htmlReportUrl}" class="today-card" target="_blank" rel="noopener noreferrer">
       <div class="card-header">
         <h3>${group.distro}</h3>
         <span class="time-badge ${badge.colorClass}">${badge.text}</span>
@@ -125,7 +123,7 @@ function renderWeeklyCard(group: GroupedResult): string {
         const height = (passRate / 100) * 100;
 
         return `
-      <a href="${result.htmlReportUrl}" class="bar-link" target="_blank">
+      <a href="${result.htmlReportUrl}" class="bar-link" target="_blank" rel="noopener noreferrer">
         <rect x="${20 + idx * 50}" y="${110 - height}" width="35" height="${height}" fill="${color}" class="bar"/>
         <title>${passRate.toFixed(1)}%</title>
       </a>
@@ -189,7 +187,7 @@ function renderMonthlyCard(group: GroupedResult): string {
     const pointElements = points.map(p => {
         const color = p.passRate >= 80 ? '#059669' : p.passRate >= 60 ? '#d97706' : '#dc2626';
         return `
-      <a href="${p.result.htmlReportUrl}" target="_blank">
+      <a href="${p.result.htmlReportUrl}" target="_blank" rel="noopener noreferrer">
         <circle cx="${p.x}" cy="${p.y}" r="4" fill="${color}" class="chart-point"/>
         <title>${p.passRate.toFixed(1)}%</title>
       </a>
@@ -243,6 +241,15 @@ export function renderLoadingState(): void {
 }
 
 /**
+ * Escape HTML entities to prevent XSS
+ */
+function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Render error state
  */
 export function renderErrorState(error: Error): void {
@@ -251,7 +258,7 @@ export function renderErrorState(error: Error): void {
         container.innerHTML = `
       <div class="error-state">
         <h2>Unable to load dashboard</h2>
-        <p>${error.message}</p>
+        <p>${escapeHtml(error.message)}</p>
         <button onclick="location.reload()">Retry</button>
       </div>
         `;

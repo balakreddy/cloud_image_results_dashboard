@@ -27,9 +27,9 @@ export function getComposeDate(composeId: string): Date {
     const match = composeId.match(/(\d{8})/);
     if (match) {
         const dateStr = match[1];
-        const year = parseInt(dateStr.substring(0, 4));
-        const month = parseInt(dateStr.substring(4, 6)) - 1;
-        const day = parseInt(dateStr.substring(6, 8));
+        const year = parseInt(dateStr.substring(0, 4), 10);
+        const month = parseInt(dateStr.substring(4, 6), 10) - 1;
+        const day = parseInt(dateStr.substring(6, 8), 10);
         return new Date(year, month, day);
     }
     return new Date();

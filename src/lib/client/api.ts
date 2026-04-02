@@ -69,10 +69,10 @@ export function composeIdFromEntry(entry: ComposeEntry): string {
 
     const dateCompact = entry.date.replace(/-/g, '');
 
-    if (entry.version == 'Rawhide') {
+    if (entry.version === 'Rawhide') {
         return `Fedora-Rawhide-${dateCompact}.${entry.build}`;
     }
-    if (entry.version == 'ELN') {
+    if (entry.version === 'ELN') {
         return `Fedora-eln-${dateCompact}.${entry.build}`;
     }
     return `Fedora-Cloud-${entry.version}-${dateCompact}.${entry.build}`;
