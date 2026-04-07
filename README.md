@@ -1,109 +1,33 @@
 # Fedora Cloud Image Test Results Dashboard
 
-A web dashboard that displays automated test results for Fedora Cloud images running on Azure infrastructure. It fetches JUnit XML results directly from Azure Blob Storage and presents them with interactive visualizations.
+Web dashboard displaying automated test results for Fedora Cloud images running on Azure.
 
 ## Features
 
-- **Latest Results** — Shows the most recent test results per distro (Rawhide, Fedora 44, 43, 42, ELN) and architecture (x86_64, aarch64) with donut charts
-- **Weekly & Monthly Trends** — Inline bar charts showing daily pass rates over 7-day and 30-day windows
-- **Drill-down Detail Pages** — Click any result card to view individual test suites and test cases with pass/fail/skip status and error messages
-- **Manifest-based** — Uses `composes.json` manifest to list available test results
-- **Static Build** — Generates static HTML at build time; deployable anywhere
+- **Latest Results** — Donut charts showing pass percentages for Rawhide, latest Fedora versions (44, 43), and ELN on both x86_64 and aarch64
+- **Weekly/Monthly Trends** — Clickable charts with expandable details
+- **Server-Side Proxy** — Fetches data through our server (avoids browser security restrictions)
+
+## Quick Start
+
+```sh
+npm install
+npm run dev      # localhost:4321/dashboard
+npm run build    # Production build to ./dist/
+```
 
 ## Data Source
 
-Test results are fetched from Azure Blob Storage at `fedoratestresults.z5.web.core.windows.net`. Available composes are listed in `composes.json` manifest:
+Azure Blob Storage: `fedoratestresults.z5.web.core.windows.net`
 
-```
-https://fedoratestresults.z5.web.core.windows.net/composes.json
-```
+## API Endpoints
 
-The blob structure follows:
-
-```
-{ComposeId}/{architecture}/junit.xml
-```
-
-For example: `Fedora-Cloud-43-20260206.0/x86_64/junit.xml`
-
-Supported compose patterns:
-- `Fedora-Cloud-{version}-{YYYYMMDD}.{build}` (e.g., Fedora 42, 43)
-- `Fedora-Rawhide-{YYYYMMDD}.n.{build}`
-- `Fedora-eln-{YYYYMMDD}.n.{build}`
-
-## Project Structure
-
-```text
-/
-├── public/
-│   ├── favicon.svg
-│   └── redirect-root.html
-├── scripts/
-│   └── test-connection.ts
-├── src/
-│   ├── layouts/
-│   │   └── Layout.astro
-│   ├── lib/
-│   │   ├── azure/
-│   │   │   ├── client.ts          # HTTP client for Azure Blob Storage
-│   │   │   ├── config.ts          # Azure endpoint configuration
-│   │   │   └── manifest.ts        # Compose manifest utilities and filtering
-│   │   ├── parsers/
-│   │   │   └── junit.ts           # JUnit XML parser
-│   │   ├── services/
-│   │   │   └── results.ts         # High-level results service
-│   │   └── utils/
-│   │       └── formatters.ts      # Date, duration, version utilities
-│   ├── pages/
-│   │   ├── index.astro            # Main dashboard page
-│   │   ├── results/
-│   │   │   └── [compose]/
-│   │   │       └── [arch].astro   # Detail page per compose/arch
-│   │   └── api/
-│   │       ├── composes.json.ts   # API: list composes
-│   │       └── results/
-│   │           └── [compose]/
-│   │               ├── index.json.ts    # API: results for a compose
-│   │               └── [arch].json.ts   # API: results for compose/arch
-│   └── types/
-│       └── index.ts               # TypeScript type definitions
-├── astro.config.mjs
-├── tailwind.config.mjs
-├── tsconfig.json
-└── package.json
-```
-
-## Commands
-
-All commands are run from the root of the project:
-
-| Command                    | Action                                                     |
-| :------------------------- | :--------------------------------------------------------- |
-| `npm install`              | Install dependencies                                       |
-| `npm run dev`              | Start local dev server at `localhost:4321/dashboard`       |
-| `npm run build`            | Type-check and build production site to `./dist/`          |
-| `npm run preview`          | Preview the production build locally                       |
-| `npm run test:connection`  | Test connectivity to Azure Blob Storage                    |
-
-## Deployment
-
-The dashboard builds to static HTML under `./dist/` with a base path of `/dashboard`. To deploy:
-
-```sh
-npm run build
-# Serve the dist/ directory from your web server at /dashboard
-```
-
-## Pages & API Endpoints
-
-| Route                                         | Description                                 |
-| :-------------------------------------------- | :------------------------------------------ |
-| `/dashboard/`                                 | Main dashboard with latest results          |
-| `/dashboard/results/{compose}/{arch}/`        | Detailed results for a compose + arch       |
-| `/dashboard/api/composes.json`                | JSON list of available compose IDs          |
-| `/dashboard/api/results/{compose}/index.json` | JSON results for all arches of a compose    |
-| `/dashboard/api/results/{compose}/{arch}.json`| JSON results for a specific compose + arch  |
+| Route                       | Description                    |
+| :-------------------------- | :----------------------------- |
+| `/dashboard/`               | Main dashboard                 |
+| `/dashboard/api/results.json` | All test results (pre-parsed) |
+| `/dashboard/api/composes.json` | Available composes list      |
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)
