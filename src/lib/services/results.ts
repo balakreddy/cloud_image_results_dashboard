@@ -33,12 +33,12 @@ export async function getTestResult(
 ): Promise<TestResult | null> {
   // Get the junit path from the manifest
   const blobPath = await getJunitPath(composeId, architecture);
-  
+
   if (!blobPath) {
     console.error(`No junit path found in manifest for ${composeId}/${architecture}`);
     return null;
   }
-  
+
   try {
     const xml = await downloadBlob(blobPath);
     const result = parseJunitXml(xml, composeId, architecture);
@@ -48,7 +48,7 @@ export async function getTestResult(
     if (result && htmlPath) {
       result.htmlReportUrl = getBlobUrl(htmlPath);
     }
-    
+
     return result;
   } catch (error) {
     console.error(`Failed to fetch test result for ${composeId}/${architecture}:`, error);
@@ -62,11 +62,11 @@ export async function getTestResult(
 export async function getComposeResults(composeId: string): Promise<TestResult[]> {
   // Get available architectures from manifest
   const architectures = await getArchitecturesForCompose(composeId);
-  
+
   if (architectures.length === 0) {
     return [];
   }
-  
+
   const results = await Promise.all(
     architectures.map(arch => getTestResult(composeId, arch))
   );
@@ -75,14 +75,34 @@ export async function getComposeResults(composeId: string): Promise<TestResult[]
 }
 
 /**
- * Get latest test results across multiple composes
+ * Get latest test results across all versions
+ * Returns results for all filtered composes (Rawhide, top 2 Fedora versions, ELN)
+ * @param limitPerVersion - Max composes per version (default: 30 for ~monthly data)
  */
-export async function getLatestResults(limit: number = 10): Promise<TestResult[]> {
-  const composeIds = await getComposeIds();
-  const latest = composeIds.slice(0, limit);
-  
+export async function getLatestResults(limitPerVersion: number = 30): Promise<TestResult[]> {
+  const entries = await getAllComposeEntries();
+
+  // Group by version and limit each
+  const versionGroups = new Map<string, ComposeEntry[]>();
+  for (const entry of entries) {
+    const group = versionGroups.get(entry.version) || [];
+    if (group.length < limitPerVersion) {
+      group.push(entry);
+      versionGroups.set(entry.version, group);
+    }
+  }
+
+  // Flatten back to array
+  const limitedEntries = Array.from(versionGroups.values()).flat();
+
+  // Convert to compose IDs
+  const { composeIdFromEntry } = await import('../azure/manifest');
+  const composeIds = limitedEntries.map(e => composeIdFromEntry(e));
+
+  console.log(`[Results] Fetching results for ${composeIds.length} composes across ${versionGroups.size} versions`);
+
   const allResults = await Promise.all(
-    latest.map(id => getComposeResults(id))
+    composeIds.map(id => getComposeResults(id))
   );
 
   return allResults.flat();

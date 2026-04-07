@@ -22,13 +22,13 @@ export async function getComposesManifest(): Promise<ComposesManifest> {
   try {
     const content = await downloadBlob('composes.json');
     const manifest = JSON.parse(content) as ComposesManifest;
-    
+
     // Update cache
     manifestCache = {
       data: manifest,
       expires: Date.now() + CACHE_TTL
     };
-    
+
     return manifest;
   } catch (error) {
     console.error('Failed to fetch composes.json manifest:', error);
@@ -41,25 +41,32 @@ export async function getComposesManifest(): Promise<ComposesManifest> {
 }
 
 /**
+ * Normalize date to YYYYMMDD format for comparison
+ */
+function normalizeDate(date: string): string {
+  return date.replace(/-/g, '');
+}
+
+/**
  * Get all compose entries from the manifest
  * Filtered to Rawhide, top 2 Fedora versions, and ELN
- * Sorted: Rawhide → Fedora (desc) → ELN, then by date
+ * Sorted: Rawhide → Fedora (desc) → ELN, then by date (newest first)
  */
 export async function getComposeEntries(): Promise<ComposeEntry[]> {
   const manifest = await getComposesManifest();
-  
-  // Get top 3 numeric versions
+
+  // Get top 2 numeric versions
   const numericVersions = [...new Set(
     manifest.composes.map(c => c.version).filter(v => !isNaN(Number(v)))
   )].sort((a, b) => Number(b) - Number(a)).slice(0, 2);
-  
+
   const allowed = ['Rawhide',...numericVersions, 'ELN'];
-  
+
   return manifest.composes
     .filter(e => allowed.includes(e.version))
-    .sort((a, b) => 
-      allowed.indexOf(a.version) - allowed.indexOf(b.version) || 
-      b.date.localeCompare(a.date)
+    .sort((a, b) =>
+      allowed.indexOf(a.version) - allowed.indexOf(b.version) ||
+      normalizeDate(b.date).localeCompare(normalizeDate(a.date))
     );
 }
 
@@ -78,8 +85,8 @@ export async function getAvailableComposes(_useDiscovery?: boolean): Promise<str
  *       -> "Fedora-Cloud-43-20260212.0"
  */
 export function composeIdFromEntry(entry: ComposeEntry): string {
-  const dateCompact = entry.date.replace(/-/g, '');
-  
+  const dateCompact = normalizeDate(entry.date);
+
   if (entry.version === 'Rawhide') {
     return `Fedora-Rawhide-${dateCompact}.${entry.build}`;
   }

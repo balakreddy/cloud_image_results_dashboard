@@ -39,10 +39,10 @@ export function getComposeDate(composeId: string): Date {
  * Format date for display
  */
 export function formatDate(date: Date): string {
-    return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
     });
 }
 
@@ -79,14 +79,33 @@ export function formatPercent(passed: number, failed: number): string {
 
 /**
  * Process all results into grouped structure for dashboard display
+ * Uses the most recent data date as reference (not today) to handle stale data gracefully
  */
 export function processResults(allResults: TestResult[]): GroupedResult[] {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Find the most recent date in the data (reference point for filtering)
+    let maxDataDate = new Date(0);
+    for (const result of allResults) {
+        const resultDate = getComposeDate(result.composeId);
+        if (resultDate > maxDataDate) {
+            maxDataDate = resultDate;
+        }
+    }
+
+    // If no data, use today as fallback
+    if (maxDataDate.getTime() === 0) {
+        maxDataDate = new Date();
+    }
+
+    // Reference date is the most recent data date (normalized to start of day)
+    const referenceDate = new Date(maxDataDate.getFullYear(), maxDataDate.getMonth(), maxDataDate.getDate());
+
+    // Calculate cutoffs relative to the most recent data
+    const sevenDaysAgo = new Date(referenceDate);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 7 days including reference date
+    const thirtyDaysAgo = new Date(referenceDate);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // 30 days including reference date
+
+    console.log(`[Processor] Reference date: ${referenceDate.toISOString().slice(0,10)}, Weekly from: ${sevenDaysAgo.toISOString().slice(0,10)}, Monthly from: ${thirtyDaysAgo.toISOString().slice(0,10)}`);
 
     const groupMap = new Map<string, GroupedResult>();
 
@@ -107,18 +126,18 @@ export function processResults(allResults: TestResult[]): GroupedResult[] {
 
         const group = groupMap.get(key)!;
 
-        // Track most recent result
+        // Track most recent result (latest)
         if (!group.today || result.composeId > group.today.composeId) {
             group.today = result;
         }
 
-        // Add to weekly if within 7 days
-        if (resultDate >= sevenDaysAgo && resultDate <= today) {
+        // Add to weekly if within 7 days of most recent data
+        if (resultDate >= sevenDaysAgo && resultDate <= referenceDate) {
             group.weekly.push(result);
         }
 
-        // Add to monthly if within 30 days
-        if (resultDate >= thirtyDaysAgo && resultDate <= today) {
+        // Add to monthly if within 30 days of most recent data
+        if (resultDate >= thirtyDaysAgo && resultDate <= referenceDate) {
             group.monthly.push(result);
         }
     }
@@ -154,14 +173,14 @@ function deduplicateByDate(results: TestResult[], maxDays: number): TestResult[]
 }
 
 /**
- * Sort groups: x86_64 first, then by distro order 
+ * Sort groups: x86_64 first, then by distro order
  */
 function sortGroups(groups: GroupedResult[], allResults: TestResult[]): GroupedResult[] {
     // Compute distro order
     const numericDistros = [...new Set(allResults.map(r => getDistroType(r.composeId)))]
         .filter(d => d.startsWith('Fedora ') && !isNaN(Number(d.replace('Fedora ', ''))))
         .sort((a, b) => Number(b.replace('Fedora ', '')) - Number(a.replace('Fedora ', '')));
-    
+
     const distroOrder = ['Rawhide', ...numericDistros, 'ELN'];
     const archOrder = ['x86_64', 'aarch64'];
 
@@ -195,7 +214,7 @@ export function createDonutChart(
     const outerEnd = polarToCartesian(cx, cy, outerRadius, startAngle);
     const innerStart = polarToCartesian(cx, cy, innerRadius, endAngle);
     const innerEnd = polarToCartesian(cx, cy, innerRadius, startAngle);
-    
+
     const largeArcFlag = (endAngle - startAngle) <= 180 ? '0' : '1';
 
     return [

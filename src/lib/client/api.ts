@@ -1,34 +1,43 @@
 /**
  * Client-side API for fetching dashboard data
  * Uses browser's native fetch() - no npm dependencies
+ * Fetches from local API proxy to avoid CORS issues
  */
 
 import type { ComposeManifest, ComposeEntry, TestResult } from "./types";
-import { parseJunitXml } from './parser';
 
-// Azure blob storage endpoint
-const ENDPOINT = 'https://fedoratestresults.z5.web.core.windows.net/';
+// Use local API proxy (server handles Azure requests, avoiding CORS)
+const API_BASE = '/api';
+
+// Azure blob storage endpoint (for direct HTML report links only)
+const AZURE_ENDPOINT = 'https://fedoratestresults.z5.web.core.windows.net/';
 
 // Cache for manifest
 let manifestCache: {data: ComposeManifest; expires: number} | null = null;
 const CACHE_TTL = 5* 60*1000; // 5 minutes
 
 /**
- * Fetch the composes manifest (composes.json) from Azure Blob Storage
+ * Fetch the composes manifest via local API proxy
  */
 export async function fetchManifest(): Promise<ComposeManifest> {
     // check cache first
     if (manifestCache && manifestCache.expires > Date.now()) {
         return manifestCache.data;
     }
-    
-    const response = await fetch(`${ENDPOINT}composes.json`);
+
+    const response = await fetch(`${API_BASE}/composes.json`);
 
     if (!response.ok) {
         throw new Error(`Failed to fetch manifest: ${response.status} ${response.statusText}`);
     }
-    
-    const manifest = await response.json() as ComposeManifest;
+
+    const data = await response.json();
+
+    // API returns { success, count, composes } - convert to ComposeManifest format
+    const manifest: ComposeManifest = {
+        lastUpdated: new Date().toISOString(),
+        composes: data.composes || []
+    };
 
     // Update cache
     manifestCache = {
@@ -40,12 +49,16 @@ export async function fetchManifest(): Promise<ComposeManifest> {
 }
 
 /**
- * Fetch a single junit.xml file
+ * Fetch a single junit.xml file via local API proxy
  */
 
 export async function fetchJunitXml(blobPath: string): Promise<string> {
-    const response = await fetch(`${ENDPOINT}${blobPath}`);
-    
+    // Note: This function is kept for backwards compatibility but the results API
+    // is preferred as it returns pre-parsed data and avoids CORS issues
+    console.warn('fetchJunitXml called but results API should be used instead');
+
+    const response = await fetch(`${AZURE_ENDPOINT}${blobPath}`);
+
     if (!response.ok) {
         throw new Error(`Failed to fetch junit XML: ${response.status} ${response.statusText}`);
     }
@@ -55,11 +68,11 @@ export async function fetchJunitXml(blobPath: string): Promise<string> {
 
 
 /**
- * Build HTML report URL from blob path
+ * Build HTML report URL from blob path (direct Azure link - opened in new tab, no CORS issue)
  */
 
 export function getHtmlReportUrl(htmlPath: string): string {
-    return `${ENDPOINT}${htmlPath}`;
+    return `${AZURE_ENDPOINT}${htmlPath}`;
 }
 
 /**
@@ -88,10 +101,10 @@ export function filterComposeEntries(manifest: ComposeManifest): ComposeEntry[] 
 
     const allowedVersions = ['Rawhide', ...numericVersions, 'ELN'];
 
-    // Limit to last 30 days
+    // Limit to last 30 days - format as YYYYMMDD to match manifest format
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const cutoffDate = thirtyDaysAgo.toISOString().slice(0, 10);
+    const cutoffDate = thirtyDaysAgo.toISOString().slice(0, 10).replace(/-/g, '');
 
     return manifest.composes
         .filter(c => allowedVersions.includes(c.version) && c.date >= cutoffDate)
@@ -102,41 +115,36 @@ export function filterComposeEntries(manifest: ComposeManifest): ComposeEntry[] 
 }
 
 /**
- * Fetch all test results in parallel
+ * Fetch all test results from the server API (pre-parsed, no CORS issues)
  */
+export async function fetchAllResults(_manifest?: ComposeManifest): Promise<TestResult[]> {
+    console.log(`[API] Fetching all results from server API...`);
 
-export async function fetchAllResults(manifest: ComposeManifest): Promise<TestResult[]> {
-    const entries = filterComposeEntries(manifest);
+    const response = await fetch(`${API_BASE}/results.json`);
 
-    // Create fetch tasks for all compose and architecture combinations
-    const fetchTasks: Promise<TestResult | null>[] = [];
-
-    for (const entry of entries) {
-        const composeId = composeIdFromEntry(entry);
-
-        for (const [arch, archResult] of Object.entries(entry.results)) {
-            fetchTasks.push(
-                fetchJunitXml(archResult.junit_xml)
-                .then(xml => parseJunitXml(xml, composeId, arch, getHtmlReportUrl(archResult.html_report)))
-                .catch(err => {
-                    console.warn(`Failed to fetch ${composeId}/${arch}:`, err);
-                    return null;
-                })
-            );
-        }
+    if (!response.ok) {
+        throw new Error(`Failed to fetch results: ${response.status} ${response.statusText}`);
     }
 
-    // Execute all in parallel
-    const fetchedResults = await Promise.all(fetchTasks);
+    const data = await response.json();
 
-    // Filter out failed fetches
-    return fetchedResults.filter((r): r is TestResult => r !== null);
+    if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch results');
+    }
+
+    console.log(`[API] Received ${data.count} results from server`);
+
+    // Convert timestamp strings back to Date objects
+    return data.results.map((r: TestResult) => ({
+        ...r,
+        timestamp: new Date(r.timestamp)
+    }));
 }
 
 /**
  * Entry point to load all data for the dashboard
  */
 export async function loadDashboardData(): Promise<TestResult[]> {
-    const manifest = await fetchManifest();
-    return fetchAllResults(manifest);
+    // Use the server API which handles all Azure requests server-side
+    return fetchAllResults();
 }
