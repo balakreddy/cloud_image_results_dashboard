@@ -11,7 +11,8 @@ export const GET: APIRoute = async ({ url }) => {
   try {
     // Get limit per version from query params (default: 30 for ~monthly data per version)
     const limitParam = url.searchParams.get('limitPerVersion');
-    const limitPerVersion = limitParam ? parseInt(limitParam, 10) : 30;
+    const parsed = parseInt(limitParam || '30', 10);
+    const limitPerVersion = Math.min(Math.max(parsed || 30, 1), 100);
 
     const results = await getLatestResults(limitPerVersion);
     

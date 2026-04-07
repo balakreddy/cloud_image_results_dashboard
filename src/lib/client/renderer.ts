@@ -24,92 +24,81 @@ export function renderDashboard(groups: GroupedResult[]): void {
 
 /**
  * Set up click handlers for weekly and monthly expandable details
+ * Uses event delegation to avoid memory leaks on re-renders
  */
-function setupClickHandlers(): void {
-    // Weekly date labels
-    const dateLabels = document.querySelectorAll('.weekly-date-label');
+let dashboardClickHandler: ((e: Event) => void) | null = null;
 
-    dateLabels.forEach(label => {
-        label.addEventListener('click', (e) => {
+function setupClickHandlers(): void {
+    const container = document.getElementById('dashboard-content');
+    if (!container) return;
+
+    // Remove old listener if exists (prevents leak on re-render)
+    if (dashboardClickHandler) {
+        container.removeEventListener('click', dashboardClickHandler);
+    }
+
+    dashboardClickHandler = (e: Event) => {
+        const target = e.target as HTMLElement;
+
+        // Weekly date labels
+        if (target.classList.contains('weekly-date-label')) {
             e.preventDefault();
             e.stopPropagation();
-            const barId = label.getAttribute('data-weekly-bar');
+            const barId = target.getAttribute('data-weekly-bar');
             const details = document.querySelector(`[data-weekly-details="${barId}"]`);
-
             if (details) {
-                // Close all other details in the same container
-                const container = label.closest('.weekly-histogram-container');
-                if (container) {
-                    container.querySelectorAll('.weekly-bar-details').forEach(d => {
-                        if (d !== details) {
-                            d.classList.remove('expanded');
-                        }
-                    });
-                }
-
-                // Toggle current details
+                const cont = target.closest('.weekly-histogram-container');
+                cont?.querySelectorAll('.weekly-bar-details').forEach(d => {
+                    if (d !== details) d.classList.remove('expanded');
+                });
                 details.classList.toggle('expanded');
             }
-        });
-    });
+            return;
+        }
 
-    // Weekly bars
-    const bars = document.querySelectorAll('.weekly-histogram-bar');
-    bars.forEach(bar => {
-        bar.addEventListener('click', (e) => {
+        // Weekly bars
+        if (target.classList.contains('weekly-histogram-bar')) {
             e.preventDefault();
             e.stopPropagation();
-            const group = bar.closest('.weekly-bar-group');
-            if (group) {
-                const barId = group.getAttribute('data-bar-id');
+            const group = target.closest('.weekly-bar-group');
+            const barId = group?.getAttribute('data-bar-id');
+            if (barId) {
                 const details = document.querySelector(`[data-weekly-details="${barId}"]`);
-
                 if (details) {
-                    const container = bar.closest('.weekly-histogram-container');
-                    if (container) {
-                        container.querySelectorAll('.weekly-bar-details').forEach(d => {
-                            if (d !== details) {
-                                d.classList.remove('expanded');
-                            }
-                        });
-                    }
+                    const cont = target.closest('.weekly-histogram-container');
+                    cont?.querySelectorAll('.weekly-bar-details').forEach(d => {
+                        if (d !== details) d.classList.remove('expanded');
+                    });
                     details.classList.toggle('expanded');
                 }
             }
-        });
-    });
+            return;
+        }
 
-    // Monthly chart points
-    const monthlyPoints = document.querySelectorAll('.monthly-point-group');
-    monthlyPoints.forEach(point => {
-        point.addEventListener('click', (e) => {
+        // Monthly chart points
+        const pointGroup = target.closest('.monthly-point-group');
+        if (pointGroup) {
             e.preventDefault();
             e.stopPropagation();
-            const pointId = point.getAttribute('data-monthly-point');
+            const pointId = pointGroup.getAttribute('data-monthly-point');
             const details = document.querySelector(`[data-monthly-details="${pointId}"]`);
-
             if (details) {
-                // Close all other details in the same container
-                const container = point.closest('.monthly-chart-container');
-                if (container) {
-                    container.querySelectorAll('.monthly-point-details').forEach(d => {
-                        if (d !== details) {
-                            d.classList.remove('expanded');
-                        }
-                    });
-                }
-
-                // Toggle current details
+                const cont = pointGroup.closest('.monthly-chart-container');
+                cont?.querySelectorAll('.monthly-point-details').forEach(d => {
+                    if (d !== details) d.classList.remove('expanded');
+                });
                 details.classList.toggle('expanded');
             }
-        });
-    });
+        }
+    };
+
+    container.addEventListener('click', dashboardClickHandler);
 }
 
 /**
  * Render latest results section
  */
-export function renderLatestSection(groups: GroupedResult[]): void {
+function renderLatestSection(groups: GroupedResult[]): void {
     const x86Container = document.getElementById('x86_64-latest');
     const aarchContainer = document.getElementById('aarch64-latest');
 
@@ -144,8 +133,8 @@ function renderTodayCard(group: GroupedResult): string {
     return `
     <a href="${escapeAttr(result.htmlReportUrl || '')}" class="today-card" target="_blank" rel="noopener noreferrer">
       <div class="card-header">
-        <h3>${group.distro}</h3>
-        <span class="time-badge ${badge.colorClass}">${badge.text}</span>
+        <h3>${escapeHtml(group.distro)}</h3>
+        <span class="time-badge ${badge.colorClass}">${escapeHtml(badge.text)}</span>
       </div>
 
       <div class="pie-container">
@@ -178,7 +167,7 @@ function renderTodayCard(group: GroupedResult): string {
 /**
  * Render weekly trends section
  */
-export function renderWeeklySection(groups: GroupedResult[]): void {
+function renderWeeklySection(groups: GroupedResult[]): void {
     const x86Container = document.getElementById('x86_64-weekly');
     const aarchContainer = document.getElementById('aarch64-weekly');
 
@@ -272,7 +261,7 @@ function renderWeeklyCard(group: GroupedResult): string {
             <a href="${escapeAttr(result.htmlReportUrl || '')}" class="detail-link" target="_blank" rel="noopener noreferrer">
               View Full Results →
             </a>
-            <div class="detail-compose">${result.composeId}</div>
+            <div class="detail-compose">${escapeHtml(result.composeId)}</div>
           </div>
         `;
     }).join('');
@@ -280,7 +269,7 @@ function renderWeeklyCard(group: GroupedResult): string {
     return `
     <div class="distro-card">
       <div class="distro-card-header">
-        <h4 class="distro-card-title">${group.distro}</h4>
+        <h4 class="distro-card-title">${escapeHtml(group.distro)}</h4>
         <span class="distro-card-summary">${group.weekly.length} day${group.weekly.length !== 1 ? 's' : ''}</span>
       </div>
       <div class="distro-card-content">
@@ -308,7 +297,7 @@ function renderWeeklyCard(group: GroupedResult): string {
 /**
  * Render monthly trends section
  */
-export function renderMonthlySection(groups: GroupedResult[]): void {
+function renderMonthlySection(groups: GroupedResult[]): void {
     const x86Container = document.getElementById('x86_64-monthly');
     const aarchContainer = document.getElementById('aarch64-monthly');
 
@@ -387,7 +376,7 @@ function renderMonthlyCard(group: GroupedResult): string {
             <a href="${escapeAttr(p.result.htmlReportUrl || '')}" class="detail-link" target="_blank" rel="noopener noreferrer">
               View Full Results →
             </a>
-            <div class="detail-compose">${p.result.composeId}</div>
+            <div class="detail-compose">${escapeHtml(p.result.composeId)}</div>
           </div>
         `;
     }).join('');
@@ -408,7 +397,7 @@ function renderMonthlyCard(group: GroupedResult): string {
     return `
     <div class="distro-card">
       <div class="distro-card-header">
-        <h4 class="distro-card-title">${group.distro}</h4>
+        <h4 class="distro-card-title">${escapeHtml(group.distro)}</h4>
         <span class="distro-card-summary">${group.monthly.length} day${group.monthly.length !== 1 ? 's' : ''}</span>
       </div>
       <div class="distro-card-content">

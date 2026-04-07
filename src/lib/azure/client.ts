@@ -5,43 +5,30 @@
  */
 
 import { getBlobUrl } from './config';
-import type { BlobMetadata } from '@/types';
 
 // Simple in-memory cache (5 min TTL)
-const cache = new Map<string, { data: any; expires: number }>();
+const cache = new Map<string, { data: string; expires: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
 
 /**
- * List blobs with a prefix using Azure REST API
- * For public containers, we'll fetch and parse the XML listing
+ * Clean expired cache entries to prevent memory growth
  */
-export async function listBlobs(prefix?: string): Promise<BlobMetadata[]> {
-  const cacheKey = `list:${prefix || 'all'}`;
-  
-  // Check cache first
-  const cached = cache.get(cacheKey);
-  if (cached && cached.expires > Date.now()) {
-    return cached.data;
+function cleanExpiredCache(): void {
+  const now = Date.now();
+  for (const [key, value] of cache.entries()) {
+    if (value.expires < now) {
+      cache.delete(key);
+    }
   }
-
-  // For now, return empty array - we'll implement proper listing later
-  // This is a minimalistic approach to get started
-  const blobs: BlobMetadata[] = [];
-  
-  cache.set(cacheKey, {
-    data: blobs,
-    expires: Date.now() + CACHE_TTL
-  });
-
-  return blobs;
 }
 
 /**
  * Download blob content as text (simple HTTP GET)
  */
 export async function downloadBlob(blobName: string): Promise<string> {
+  cleanExpiredCache();
   const cacheKey = `blob:${blobName}`;
-  
+
   // Check cache first
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
@@ -64,17 +51,4 @@ export async function downloadBlob(blobName: string): Promise<string> {
   });
 
   return content;
-}
-
-/**
- * Check if a blob exists
- */
-export async function blobExists(blobName: string): Promise<boolean> {
-  try {
-    const url = getBlobUrl(blobName);
-    const response = await fetch(url, { method: 'HEAD' });
-    return response.ok;
-  } catch {
-    return false;
-  }
 }

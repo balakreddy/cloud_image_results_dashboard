@@ -95,8 +95,7 @@ export async function getLatestResults(limitPerVersion: number = 30): Promise<Te
   // Flatten back to array
   const limitedEntries = Array.from(versionGroups.values()).flat();
 
-  // Convert to compose IDs
-  const { composeIdFromEntry } = await import('../azure/manifest');
+  // Convert to compose IDs (use already-imported function)
   const composeIds = limitedEntries.map(e => composeIdFromEntry(e));
 
   console.log(`[Results] Fetching results for ${composeIds.length} composes across ${versionGroups.size} versions`);
