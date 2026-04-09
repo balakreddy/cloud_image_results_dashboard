@@ -110,25 +110,13 @@ import Layout from '../layouts/Layout.astro';
   import { renderDashboard, renderLoadingState, renderErrorState } from '../lib/client/renderer';
 
   async function initDashboard() {
-    console.log('[DEBUG] 1. initDashboard started');
     try {
       renderLoadingState();
-      console.log('[DEBUG] 2. Loading state rendered');
-
-      console.log('[DEBUG] 3. Calling loadDashboardData...');
       const allResults = await loadDashboardData();
-      console.log(`[DEBUG] 4. Got ${allResults.length} results`);
-
-      console.log('[DEBUG] 5. Calling processResults...');
       const groups = processResults(allResults);
-      console.log(`[DEBUG] 6. Got ${groups.length} groups`);
-
-      console.log('[DEBUG] 7. Calling renderDashboard...');
       renderDashboard(groups);
-      console.log('[DEBUG] 8. Dashboard rendered successfully!');
-
     } catch (error) {
-      console.error('[DEBUG] ERROR:', error);
+      console.error('Dashboard error:', error);
       renderErrorState(error as Error);
     }
   }

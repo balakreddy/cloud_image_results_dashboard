@@ -4,9 +4,9 @@ Web dashboard displaying automated test results for Fedora Cloud images running 
 
 ## Features
 
-- **Latest Results** — Donut charts showing pass percentages for Rawhide, latest Fedora versions (44, 43), and ELN on both x86_64 and aarch64
+- **Latest Results** — Donut charts showing pass rates for Rawhide, latest Fedora versions (44, 43), and ELN on both x86_64 and aarch64
 - **Weekly/Monthly Trends** — Clickable charts with expandable details
-- **Server-Side Proxy** — Fetches data through our server (avoids browser security restrictions)
+- **Live Data** — Fetches directly from Azure blob storage (composes.json + junit.xml files)
 
 ## Quick Start
 
@@ -20,13 +20,8 @@ npm run build    # Production build to ./dist/
 
 Azure Blob Storage: `fedoratestresults.z5.web.core.windows.net`
 
-## API Endpoints
-
-| Route                       | Description                    |
-| :-------------------------- | :----------------------------- |
-| `/dashboard/`               | Main dashboard                 |
-| `/dashboard/api/results.json` | All test results (pre-parsed) |
-| `/dashboard/api/composes.json` | Available composes list      |
+- `composes.json` — Index of all available test results
+- `{distro}/{version}/{date}/{arch}/junit.xml` — Individual test results
 
 ## License
 

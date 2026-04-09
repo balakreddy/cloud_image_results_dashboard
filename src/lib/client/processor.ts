@@ -22,16 +22,30 @@ export function getDistroType(composeId: string): string {
 
 /**
  * Extract date from composeID
+ * Handles both formats:
+ * - "Fedora-Cloud-42-20260309.0" (YYYYMMDD)
+ * - "Fedora-Cloud-42-2026-04-03.0" (if dashes weren't stripped)
  */
 export function getComposeDate(composeId: string): Date {
-    const match = composeId.match(/(\d{8})/);
-    if (match) {
-        const dateStr = match[1];
+    // First try: 8 consecutive digits (YYYYMMDD format)
+    const match8 = composeId.match(/(\d{8})/);
+    if (match8) {
+        const dateStr = match8[1];
         const year = parseInt(dateStr.substring(0, 4), 10);
         const month = parseInt(dateStr.substring(4, 6), 10) - 1;
         const day = parseInt(dateStr.substring(6, 8), 10);
         return new Date(year, month, day);
     }
+    
+    // Second try: YYYY-MM-DD format (in case dashes weren't stripped)
+    const matchDashed = composeId.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (matchDashed) {
+        const year = parseInt(matchDashed[1], 10);
+        const month = parseInt(matchDashed[2], 10) - 1;
+        const day = parseInt(matchDashed[3], 10);
+        return new Date(year, month, day);
+    }
+    
     return new Date();
 }
 
@@ -104,8 +118,6 @@ export function processResults(allResults: TestResult[]): GroupedResult[] {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 7 days including reference date
     const thirtyDaysAgo = new Date(referenceDate);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // 30 days including reference date
-
-    console.log(`[Processor] Reference date: ${referenceDate.toISOString().slice(0,10)}, Weekly from: ${sevenDaysAgo.toISOString().slice(0,10)}, Monthly from: ${thirtyDaysAgo.toISOString().slice(0,10)}`);
 
     const groupMap = new Map<string, GroupedResult>();
 
